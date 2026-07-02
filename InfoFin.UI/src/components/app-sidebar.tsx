@@ -29,7 +29,6 @@ const primaryNav: NavItem[] = [
     label: 'Expenses',
     icon: CreditCard,
     subItems: [
-      { href: '/expenses', label: 'Overview', icon: LayoutGrid },
       { href: '/expenses/requests', label: 'Requests', icon: FileText },
     ],
   },
@@ -120,7 +119,7 @@ export function AppSidebar({
 
               if (collapsed) {
                 return (
-                  <div key={item.label} title={item.label}>
+                  <Link key={item.label} to="/expenses" title={item.label}>
                     <div
                       className={cn(
                         'flex cursor-pointer items-center justify-center rounded-md py-2.5 text-sm font-medium',
@@ -128,18 +127,16 @@ export function AppSidebar({
                           ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                           : 'text-sidebar-foreground/70 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground',
                       )}
-                      onClick={() => toggleGroup(item.label)}
                     >
                       <item.icon className={iconCls} />
                     </div>
-                  </div>
+                  </Link>
                 )
               }
 
               return (
                 <div key={item.label}>
-                  <button
-                    onClick={() => toggleGroup(item.label)}
+                  <div
                     className={cn(
                       'flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors',
                       groupActive
@@ -147,15 +144,25 @@ export function AppSidebar({
                         : 'text-sidebar-foreground/70 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground',
                     )}
                   >
-                    <item.icon className={iconCls} />
-                    <span className="flex-1 text-left">{item.label}</span>
-                    <ChevronDown
-                      className={cn(
-                        'size-4 transition-transform',
-                        isExpanded && 'rotate-180',
-                      )}
-                    />
-                  </button>
+                    <Link
+                      to="/expenses"
+                      className="flex flex-1 items-center gap-3"
+                    >
+                      <item.icon className={iconCls} />
+                      <span className="flex-1 text-left">{item.label}</span>
+                    </Link>
+                    <button
+                      onClick={(e) => { e.preventDefault(); toggleGroup(item.label); }}
+                      className="ml-auto rounded p-1 hover:bg-sidebar-foreground/10"
+                    >
+                      <ChevronDown
+                        className={cn(
+                          'size-4 transition-transform',
+                          isExpanded && 'rotate-180',
+                        )}
+                      />
+                    </button>
+                  </div>
                   {isExpanded && (
                     <div className="ml-4 mt-1 flex flex-col gap-1 border-l border-sidebar-border pl-3">
                       {item.subItems.map((sub) => (

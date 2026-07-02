@@ -242,7 +242,7 @@ export function RequestForm() {
           </CardHeader>
           <CardContent>
             <ol className="flex flex-col gap-4">
-              {['Submitted', 'Director', 'FP&A', 'Managing Director'].map(
+              {['Posted', 'Under Review', 'Approved', 'Completed'].map(
                 (step, i) => (
                   <li key={step} className="flex items-center gap-3">
                     <span

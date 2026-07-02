@@ -1,5 +1,7 @@
 using System.Text;
 using InfoFin.Api.Security;
+using InfoFin.Api.Services;
+using InfoFin.Integration.Odoo;
 using InfoFin.ServiceCollectionExtension.Gen;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -19,6 +21,11 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod()
               .AllowCredentials());
 });
+
+// Odoo ERP integration
+builder.Services.Configure<OdooOptions>(builder.Configuration.GetSection(OdooOptions.SectionName));
+builder.Services.AddHttpClient<IOdooAdapter, OdooAdapter>();
+builder.Services.AddHostedService<OdooBackgroundService>();
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 
