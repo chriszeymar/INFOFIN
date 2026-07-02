@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>a234a9a2-bc29-4893-8141-3a6d1bc288bc</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.8" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.8" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Common\InfoFin.Common.ServiceCollectionExtension\InfoFin.Common.ServiceCollectionExtension.csproj" />
+    <ProjectReference Include="..\..\Domain\InfoFin.Domain.Interface\InfoFin.Domain.Interface.csproj" />
+    <ProjectReference Include="..\..\Service\InfoFin.Service\InfoFin.Service.csproj" />
+    <ProjectReference Include="..\..\Domain\InfoFin.Domain\InfoFin.Domain.csproj" />
+    <ProjectReference Include="..\..\Model\InfoFin.Model\InfoFin.Model.csproj" />
+    <ProjectReference Include="..\..\Common\InfoFin.Common\InfoFin.Common.csproj" />
+  </ItemGroup>
+
+</Project>

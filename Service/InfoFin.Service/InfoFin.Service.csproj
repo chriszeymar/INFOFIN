@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Dal\InfoFin.Dal\InfoFin.Dal.csproj" />
+    <ProjectReference Include="..\..\Domain\InfoFin.Domain\InfoFin.Domain.csproj" />
+    <ProjectReference Include="..\..\Model\InfoFin.Model\InfoFin.Model.csproj" />
+    <ProjectReference Include="..\..\Common\InfoFin.Common\InfoFin.Common.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,8 @@
+{
+  "ApiUrl": "http://localhost:5099",
+  "ApiVersion": "1",
+  "GroupName": "v1",
+  "OutputPath": "./InfoFin.UI/src/app",
+  "ExportFile": "./InfoFin.UI/src/codegen-v1.ts",
+  "CachingInstructions": "./InfoFin.UI/caching-instructions.txt"
+}

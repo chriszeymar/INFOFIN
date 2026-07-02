@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.Build.Sql/2.0.0">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Name>InfoFin.DB</Name>
+    <DSP>Microsoft.Data.Tools.Schema.Sql.SqlAzureV12DatabaseSchemaProvider</DSP>
+    <ModelCollation>1033,CI</ModelCollation>
+    <SchemaVersion>2.0</SchemaVersion>
+    <DefaultCollation>SQL_Latin1_General_CP1_CI_AS</DefaultCollation>
+    <DefaultFilegroup>PRIMARY</DefaultFilegroup>
+    <DeployToDatabase>True</DeployToDatabase>
+    <IncludeCompositeObjects>True</IncludeCompositeObjects>
+    <SqlServerVerification>False</SqlServerVerification>
+    <PackageId>InfoFin.DB</PackageId>
+    <EnableDefaultSqlItems>false</EnableDefaultSqlItems>
+    <TargetDatabaseSet>True</TargetDatabaseSet>
+    <OutputType>Database</OutputType>
+    <DefaultFileStructure>BySchemaAndSchemaType</DefaultFileStructure>
+  </PropertyGroup>
+  <ItemGroup>
+    <Build Include="dbo\**\*.sql" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="dbo\" />
+    <Folder Include="dbo\Tables\" />
+    <Folder Include="dbo\Stored Procedures\" />
+    <Folder Include="dbo\User Defined Types\" />
+  </ItemGroup>
+</Project>

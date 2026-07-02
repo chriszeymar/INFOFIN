@@ -1,0 +1,24 @@
+<Solution>
+  <Folder Name="/Api/">
+    <Project Path="Api/InfoFin.Api/InfoFin.Api.csproj" />
+  </Folder>
+  <Folder Name="/Common/">
+    <Project Path="Common/InfoFin.Common.ServiceCollectionExtension/InfoFin.Common.ServiceCollectionExtension.csproj" />
+    <Project Path="Common/InfoFin.Common/InfoFin.Common.csproj" />
+  </Folder>
+  <Folder Name="/Dal/">
+    <Project Path="Dal/InfoFin.Dal.Dapper/InfoFin.Dal.Dapper.csproj" />
+    <Project Path="Dal/InfoFin.Dal.Interface/InfoFin.Dal.Interface.csproj" />
+    <Project Path="Dal/InfoFin.Dal/InfoFin.Dal.csproj" />
+  </Folder>
+  <Folder Name="/Domain/">
+    <Project Path="Domain/InfoFin.Domain.Interface/InfoFin.Domain.Interface.csproj" />
+    <Project Path="Domain/InfoFin.Domain/InfoFin.Domain.csproj" />
+  </Folder>
+  <Folder Name="/Model/">
+    <Project Path="Model/InfoFin.Model/InfoFin.Model.csproj" />
+  </Folder>
+  <Folder Name="/Service/">
+    <Project Path="Service/InfoFin.Service/InfoFin.Service.csproj" />
+  </Folder>
+</Solution>

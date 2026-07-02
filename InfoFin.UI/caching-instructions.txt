@@ -1,0 +1,2 @@
+# Apstory caching instructions placeholder
+# Add endpoint-specific caching metadata as needed.

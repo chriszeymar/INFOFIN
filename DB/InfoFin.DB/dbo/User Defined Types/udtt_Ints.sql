@@ -1,0 +1,1 @@
+CREATE TYPE [dbo].[udtt_Ints] AS TABLE ([Id] INT NULL);

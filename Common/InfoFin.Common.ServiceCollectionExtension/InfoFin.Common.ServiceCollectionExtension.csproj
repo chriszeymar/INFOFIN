@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Dal\InfoFin.Dal.Dapper\InfoFin.Dal.Dapper.csproj" />
+    <ProjectReference Include="..\..\Dal\InfoFin.Dal.Interface\InfoFin.Dal.Interface.csproj" />
+    <ProjectReference Include="..\..\Domain\InfoFin.Domain.Interface\InfoFin.Domain.Interface.csproj" />
+    <ProjectReference Include="..\..\Domain\InfoFin.Domain\InfoFin.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

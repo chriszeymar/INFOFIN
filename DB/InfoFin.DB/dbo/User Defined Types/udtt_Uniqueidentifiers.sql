@@ -1,0 +1,1 @@
+CREATE TYPE [dbo].[udtt_Uniqueidentifiers] AS TABLE ([Id] UNIQUEIDENTIFIER NULL);

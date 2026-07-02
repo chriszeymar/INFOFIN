@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <add key="Apstory" value="https://pkgs.dev.azure.com/apstory/_packaging/apstory/nuget/v3/index.json" />
+  </packageSources>
+  <packageSourceCredentials>
+    <Apstory>
+      <add key="Username" value="DEV.AZURE.COM USERNAME" />
+      <add key="ClearTextPassword" value="PAT TOKEN WITH PACKAGING ACCESS" />
+    </Apstory>
+  </packageSourceCredentials>
+</configuration>
