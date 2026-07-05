@@ -1,1 +1,0 @@
-CREATE TYPE [dbo].[udtt_TinyInts] AS TABLE ([Id] TINYINT NULL);

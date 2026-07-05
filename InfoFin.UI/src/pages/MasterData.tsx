@@ -1,22 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Plus,
   Pencil,
   Trash2,
   ChevronRight,
-  FolderTree,
   ShieldAlert,
   FolderOpen,
   Building2,
-  Users,
-  Store,
   DollarSign,
   ArrowLeft,
+  RefreshCw,
+  Loader2,
+  Tags,
+  Layers,
+  FolderTree,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import {
@@ -29,28 +31,27 @@ import {
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import { useSession } from '@/auth/AuthContext'
-import {
-  categoryTree,
-  masterDepartments,
-  masterUsers,
-  masterVendors,
-  currencies,
-} from '@/lib/mock-data'
+import { httpClient } from '@/api/httpClient'
+import OdooSyncWizard from '@/components/master-data/OdooSyncWizard'
 
 type Section =
   | null
   | 'Categories'
   | 'Departments'
-  | 'Users'
-  | 'Vendors'
+  | 'Classifications'
+  | 'FinancialGroups'
+  | 'DepartmentGroups'
   | 'Currencies'
+  | 'OdooSync'
 
 const SINGULAR: Record<NonNullable<Section>, string> = {
   Categories: 'Category',
   Departments: 'Department',
-  Users: 'User',
-  Vendors: 'Vendor',
+  Classifications: 'Classification',
+  FinancialGroups: 'Financial Group',
+  DepartmentGroups: 'Department Group',
   Currencies: 'Currency',
+  OdooSync: 'Sync',
 }
 
 const CARDS: {
@@ -62,56 +63,19 @@ const CARDS: {
   color: string
   bg: string
 }[] = [
-  {
-    id: 'Categories',
-    label: 'Categories',
-    icon: FolderOpen,
-    description: 'Expense types and classification groups',
-    count: 3,
-    color: 'text-blue-600',
-    bg: 'bg-blue-50',
-  },
-  {
-    id: 'Departments',
-    label: 'Departments',
-    icon: Building2,
-    description: 'Business units and organisational groups',
-    count: masterDepartments.length,
-    color: 'text-violet-600',
-    bg: 'bg-violet-50',
-  },
-  {
-    id: 'Users',
-    label: 'Users',
-    icon: Users,
-    description: 'System users, roles and access',
-    count: masterUsers.length,
-    color: 'text-emerald-600',
-    bg: 'bg-emerald-50',
-  },
-  {
-    id: 'Vendors',
-    label: 'Vendors',
-    icon: Store,
-    description: 'Approved suppliers and service providers',
-    count: masterVendors.length,
-    color: 'text-amber-600',
-    bg: 'bg-amber-50',
-  },
-  {
-    id: 'Currencies',
-    label: 'Currencies',
-    icon: DollarSign,
-    description: 'Supported currencies and exchange rates',
-    count: currencies.length,
-    color: 'text-rose-600',
-    bg: 'bg-rose-50',
-  },
+  { id: 'Categories', label: 'Categories', icon: FolderOpen, description: 'Expense types and cost accounts', count: 0, color: 'text-blue-600', bg: 'bg-blue-50' },
+  { id: 'Departments', label: 'Departments', icon: Building2, description: 'Business units and organisational groups', count: 0, color: 'text-violet-600', bg: 'bg-violet-50' },
+  { id: 'Classifications', label: 'Classifications', icon: Tags, description: 'Cost groupings: Admin, Tech, Marketing', count: 0, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+  { id: 'FinancialGroups', label: 'Financial Groups', icon: Layers, description: 'P&L structure: Revenue, COS, OPEX', count: 0, color: 'text-amber-600', bg: 'bg-amber-50' },
+  { id: 'DepartmentGroups', label: 'Dept Groups', icon: FolderTree, description: 'BU/SU groupings for departments', count: 0, color: 'text-rose-600', bg: 'bg-rose-50' },
+  { id: 'Currencies', label: 'Currencies', icon: DollarSign, description: 'Supported currencies and exchange rates', count: 0, color: 'text-purple-600', bg: 'bg-purple-50' },
+  { id: 'OdooSync', label: 'Odoo Sync', icon: RefreshCw, description: 'Sync actuals from Odoo ERP and manage integration', count: 0, color: 'text-cyan-600', bg: 'bg-cyan-50' },
 ]
 
 export default function MasterDataPage() {
   const { role } = useSession()
   const [section, setSection] = useState<Section>(null)
+  const [addTrigger, setAddTrigger] = useState(0) // increment to trigger add modal
 
   if (role !== 'Admin') {
     return (
@@ -180,225 +144,514 @@ export default function MasterDataPage() {
           >
             <ArrowLeft className="size-4" />
           </Button>
-          <h2 className="text-base font-semibold">{section}</h2>
+          <h2 className="text-base font-semibold">{section === 'OdooSync' ? 'Odoo Integration' : section}</h2>
         </div>
-        <Button size="sm">
-          <Plus className="size-4" />
-          Add {SINGULAR[section]}
-        </Button>
+        {section !== 'OdooSync' && (
+          <Button size="sm" onClick={() => setAddTrigger((p) => p + 1)}>
+            <Plus className="size-4" />
+            Add {SINGULAR[section]}
+          </Button>
+        )}
       </div>
 
-      {section === 'Categories' && <CategoriesGrid />}
-      {section === 'Departments' && <DepartmentsGrid />}
-      {section === 'Users' && <UsersGrid />}
-      {section === 'Vendors' && <VendorsGrid />}
+      {section === 'Categories' && <CategoriesGrid addTrigger={addTrigger} />}
+      {section === 'Departments' && <DepartmentsGrid addTrigger={addTrigger} />}
+      {section === 'Classifications' && <ClassificationsGrid addTrigger={addTrigger} />}
+      {section === 'FinancialGroups' && <FinancialGroupsGrid addTrigger={addTrigger} />}
+      {section === 'DepartmentGroups' && <DepartmentGroupsGrid addTrigger={addTrigger} />}
       {section === 'Currencies' && <CurrenciesGrid />}
+      {section === 'OdooSync' && <OdooSyncWizard />}
     </div>
   )
 }
 
-function RowActions() {
+function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
   return (
     <div className="flex items-center gap-1">
-      <Button variant="ghost" size="icon-sm" aria-label="Edit">
+      <Button variant="ghost" size="icon-sm" aria-label="Edit" onClick={onEdit}>
         <Pencil className="size-4 text-amber-500" />
       </Button>
-      <Button variant="ghost" size="icon-sm" aria-label="Delete">
+      <Button variant="ghost" size="icon-sm" aria-label="Delete" onClick={onDelete}>
         <Trash2 className="size-4 text-destructive" />
       </Button>
     </div>
   )
 }
 
-function CategoriesGrid() {
+// ─── Department CRUD ──────────────────────────────────────────────────────────
+
+interface DeptRow { id: number; name: string; unit: string; group: string; departmentGroupId: number; bucketTypeId: number }
+interface LookupItem { id: number; name: string }
+
+function DepartmentsGrid({ addTrigger }: { addTrigger: number }) {
+  const [depts, setDepts] = useState<DeptRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [deptGroups, setDeptGroups] = useState<LookupItem[]>([])
+  const [editModal, setEditModal] = useState<DeptRow | null>(null)
+  const [deleteId, setDeleteId] = useState<number | null>(null)
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const [dRes, dgRes, btRes] = await Promise.all([
+        httpClient.get('/api/departments', { params: { isActive: true } }),
+        httpClient.get('/api/departmentgroups'),
+        httpClient.get('/api/buckettypes'),
+      ])
+      const dgMap = new Map((dgRes.data as any[]).map((g: any) => [g.id, g]))
+      const btMap = new Map((btRes.data as any[]).map((b: any) => [b.id, b]))
+      setDeptGroups((dgRes.data as any[]).map((g: any) => ({ id: g.id, name: g.name })))
+      setDepts((dRes.data as any[]).map((d: any) => {
+        const dg = dgMap.get(d.departmentGroupId)
+        const bt = dg ? btMap.get(dg.bucketTypeId) : null
+        return {
+          id: d.id, name: d.name,
+          departmentGroupId: d.departmentGroupId,
+          bucketTypeId: dg?.bucketTypeId ?? 0,
+          unit: bt?.name ?? '—', group: dg?.name ?? '—',
+        }
+      }))
+    } catch { /* fallback if API down */ }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => { load() }, [])
+
+  // Listen for add trigger
+  useEffect(() => {
+    if (addTrigger > 0) {
+      setEditModal({ id: 0, name: '', unit: '', group: '', departmentGroupId: deptGroups[0]?.id ?? 1, bucketTypeId: 0 })
+    }
+  }, [addTrigger])
+
+  const handleDelete = async () => {
+    if (!deleteId) return
+    try {
+      await httpClient.delete(`/api/departments/${deleteId}`)
+      setDepts((prev) => prev.filter((d) => d.id !== deleteId))
+    } catch { /* ignore */ }
+    finally { setDeleteId(null) }
+  }
+
+  const handleSave = async (form: { name: string; departmentGroupId: number }) => {
+    if (editModal && editModal.id > 0) {
+      // Update
+      await httpClient.put(`/api/departments/${editModal.id}`, {
+        id: editModal.id, name: form.name, departmentGroupId: form.departmentGroupId, isActive: true,
+      })
+    } else {
+      // Create
+      await httpClient.post('/api/departments', {
+        name: form.name, departmentGroupId: form.departmentGroupId, isActive: true,
+      })
+    }
+    setEditModal(null)
+    await load()
+  }
+
+  if (loading) return <div className="flex justify-center py-12"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
+
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-4 pt-5">
-        {categoryTree.map((group) => (
-          <div key={group.group} className="rounded-lg border border-border">
-            <div className="flex items-center gap-2 border-b border-border bg-muted/50 px-4 py-2.5">
-              <FolderTree className="size-4 text-primary" />
-              <span className="text-sm font-semibold">{group.group}</span>
-            </div>
-            <div className="flex flex-col divide-y divide-border">
-              {group.classifications.map((c) => (
-                <div key={c.name} className="px-4 py-3">
-                  <p className="mb-2 text-sm font-medium">{c.name}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {c.items.map((item) => (
-                      <span
-                        key={item}
-                        className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
-                      >
-                        <ChevronRight className="size-3" />
-                        {item}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
+    <>
+      <Card>
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="pl-6 w-20">Actions</TableHead>
+              <TableHead>Department</TableHead>
+              <TableHead>Unit</TableHead>
+              <TableHead className="pr-6">Group</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {depts.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                  No departments found. Click "Add Department" to create one.
+                </TableCell>
+              </TableRow>
+            )}
+            {depts.map((d) => (
+              <TableRow key={d.id}>
+                <TableCell className="pl-6">
+                  <RowActions onEdit={() => setEditModal(d)} onDelete={() => setDeleteId(d.id)} />
+                </TableCell>
+                <TableCell className="font-medium">{d.name}</TableCell>
+                <TableCell>
+                  <Badge variant={d.unit === 'BU' ? 'default' : 'neutral'}>{d.unit}</Badge>
+                </TableCell>
+                <TableCell className="pr-6 text-muted-foreground">{d.group}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
+
+      {/* Edit/Create Modal */}
+      {editModal !== null && (
+        <DepartmentModal
+          initial={editModal.id > 0 ? editModal : null}
+          groups={deptGroups}
+          onSave={handleSave}
+          onClose={() => setEditModal(null)}
+        />
+      )}
+
+      {/* Delete Confirm */}
+      {deleteId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setDeleteId(null)}>
+          <div className="bg-card border rounded-lg shadow-xl p-5 w-80" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold mb-2">Delete Department?</h3>
+            <p className="text-sm text-muted-foreground mb-4">This action cannot be undone.</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setDeleteId(null)}>Cancel</Button>
+              <Button size="sm" variant="destructive" onClick={handleDelete}>Delete</Button>
             </div>
           </div>
-        ))}
-      </CardContent>
-    </Card>
+        </div>
+      )}
+    </>
   )
 }
 
-function DepartmentsGrid() {
+function DepartmentModal({
+  initial, groups, onSave, onClose,
+}: {
+  initial: DeptRow | null; groups: LookupItem[]; onSave: (f: { name: string; departmentGroupId: number }) => void; onClose: () => void;
+}) {
+  const [name, setName] = useState(initial?.name ?? '')
+  const [groupId, setGroupId] = useState(initial?.departmentGroupId ?? groups[0]?.id ?? 1)
+  const isCreate = !initial
+
   return (
-    <Card>
-      <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="pl-6">Actions</TableHead>
-            <TableHead>Department</TableHead>
-            <TableHead>Unit</TableHead>
-            <TableHead className="pr-6">Group</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {masterDepartments.map((d) => (
-            <TableRow key={d.name}>
-              <TableCell className="pl-6">
-                <RowActions />
-              </TableCell>
-              <TableCell className="font-medium">{d.name}</TableCell>
-              <TableCell>
-                <Badge variant={d.unit === 'BU' ? 'default' : 'neutral'}>
-                  {d.unit}
-                </Badge>
-              </TableCell>
-              <TableCell className="pr-6 text-muted-foreground">{d.group}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </Card>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
+      <div className="bg-card border rounded-lg shadow-xl p-5 w-96" onClick={(e) => e.stopPropagation()}>
+        <h3 className="font-semibold mb-4">{isCreate ? 'Add Department' : 'Edit Department'}</h3>
+        <div className="flex flex-col gap-3">
+          <div>
+            <label className="text-xs font-medium">Name</label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Department name" className="mt-1" />
+          </div>
+          <div>
+            <label className="text-xs font-medium">Group</label>
+            <select
+              value={groupId}
+              onChange={(e) => setGroupId(Number(e.target.value))}
+              className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+            >
+              {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={() => onSave({ name, departmentGroupId: groupId })} disabled={!name.trim()}>
+            {isCreate ? 'Create' : 'Save'}
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }
 
-function UsersGrid() {
-  const [users, setUsers] = useState(masterUsers)
+// ─── Category CRUD ────────────────────────────────────────────────────────────
+
+interface CatRow { id: number; name: string; financialGroup: string; classification: string; financialGroupId: number; classificationId: number | null }
+
+function CategoriesGrid({ addTrigger }: { addTrigger: number }) {
+  const [cats, setCats] = useState<CatRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [fgList, setFgList] = useState<LookupItem[]>([])
+  const [clList, setClList] = useState<LookupItem[]>([])
+  const [editModal, setEditModal] = useState<CatRow | null>(null)
+  const [deleteId, setDeleteId] = useState<number | null>(null)
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const [cRes, fgRes, clRes] = await Promise.all([
+        httpClient.get('/api/categories', { params: { isActive: true } }),
+        httpClient.get('/api/financialgroups'),
+        httpClient.get('/api/classifications'),
+      ])
+      const fgMap = new Map((fgRes.data as any[]).map((f: any) => [f.id, f]))
+      const clMap = new Map((clRes.data as any[]).map((c: any) => [c.id, c]))
+      setFgList((fgRes.data as any[]).map((f: any) => ({ id: f.id, name: f.name })))
+      setClList((clRes.data as any[]).map((c: any) => ({ id: c.id, name: c.name })))
+      setCats((cRes.data as any[]).map((c: any) => ({
+        id: c.id, name: c.name,
+        financialGroupId: c.financialGroupId,
+        classificationId: c.classificationId,
+        financialGroup: fgMap.get(c.financialGroupId)?.name ?? '—',
+        classification: clMap.get(c.classificationId)?.name ?? '—',
+      })))
+    } catch { /* fallback if API down */ }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => { load() }, [])
+  useEffect(() => { if (addTrigger > 0) setEditModal({ id: 0, name: '', financialGroup: '', classification: '', financialGroupId: fgList[0]?.id ?? 1, classificationId: null }) }, [addTrigger])
+
+  const handleDelete = async () => {
+    if (!deleteId) return
+    try { await httpClient.delete(`/api/categories/${deleteId}`); setCats((p) => p.filter((c) => c.id !== deleteId)) } catch {}
+    setDeleteId(null)
+  }
+
+  const handleSave = async (form: { name: string; financialGroupId: number; classificationId: number | null }) => {
+    if (editModal && editModal.id > 0) {
+      await httpClient.put(`/api/categories/${editModal.id}`, { id: editModal.id, name: form.name, financialGroupId: form.financialGroupId, classificationId: form.classificationId, isActive: true })
+    } else {
+      await httpClient.post('/api/categories', { name: form.name, financialGroupId: form.financialGroupId, classificationId: form.classificationId, isActive: true })
+    }
+    setEditModal(null)
+    await load()
+  }
+
+  if (loading) return <div className="flex justify-center py-12"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
+
   return (
-    <Card>
-      <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="pl-6">Actions</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead>Role</TableHead>
-            <TableHead>Department</TableHead>
-            <TableHead className="pr-6">Active</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {users.map((u, i) => (
-            <TableRow key={u.email}>
-              <TableCell className="pl-6">
-                <RowActions />
-              </TableCell>
-              <TableCell className="font-medium">{u.email}</TableCell>
-              <TableCell>
-                <Badge variant="neutral">{u.role}</Badge>
-              </TableCell>
-              <TableCell className="text-muted-foreground">{u.department}</TableCell>
-              <TableCell className="pr-6">
-                <button
-                  onClick={() =>
-                    setUsers((prev) =>
-                      prev.map((p, j) =>
-                        j === i ? { ...p, active: !p.active } : p,
-                      ),
-                    )
-                  }
-                  className={cn(
-                    'relative h-5 w-9 rounded-full transition-colors',
-                    u.active ? 'bg-success' : 'bg-muted-foreground/30',
-                  )}
-                  aria-label="Toggle active"
-                >
-                  <span
-                    className={cn(
-                      'absolute top-0.5 size-4 rounded-full bg-card transition-transform',
-                      u.active ? 'translate-x-4' : 'translate-x-0.5',
-                    )}
-                  />
-                </button>
-              </TableCell>
+    <>
+      <Card>
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="pl-6 w-20">Actions</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Financial Group</TableHead>
+              <TableHead className="pr-6">Classification</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </Card>
+          </TableHeader>
+          <TableBody>
+            {cats.length === 0 && (
+              <TableRow><TableCell colSpan={4} className="py-8 text-center text-muted-foreground">No categories found. Click "Add Category" to create one.</TableCell></TableRow>
+            )}
+            {cats.map((c) => (
+              <TableRow key={c.id}>
+                <TableCell className="pl-6"><RowActions onEdit={() => setEditModal(c)} onDelete={() => setDeleteId(c.id)} /></TableCell>
+                <TableCell className="font-medium">{c.name}</TableCell>
+                <TableCell><Badge variant="neutral">{c.financialGroup}</Badge></TableCell>
+                <TableCell className="pr-6 text-muted-foreground">{c.classification}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
+
+      {editModal !== null && (
+        <CategoryModal initial={editModal.id > 0 ? editModal : null} fgList={fgList} clList={clList} onSave={handleSave} onClose={() => setEditModal(null)} />
+      )}
+
+      {deleteId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setDeleteId(null)}>
+          <div className="bg-card border rounded-lg shadow-xl p-5 w-80" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold mb-2">Delete Category?</h3>
+            <p className="text-sm text-muted-foreground mb-4">This action cannot be undone.</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setDeleteId(null)}>Cancel</Button>
+              <Button size="sm" variant="destructive" onClick={handleDelete}>Delete</Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
-function VendorsGrid() {
+function CategoryModal({ initial, fgList, clList, onSave, onClose }: {
+  initial: CatRow | null; fgList: LookupItem[]; clList: LookupItem[]; onSave: (f: { name: string; financialGroupId: number; classificationId: number | null }) => void; onClose: () => void;
+}) {
+  const [name, setName] = useState(initial?.name ?? '')
+  const [fgId, setFgId] = useState(initial?.financialGroupId ?? fgList[0]?.id ?? 1)
+  const [clId, setClId] = useState<number | null>(initial?.classificationId ?? null)
+  const isCreate = !initial
+
   return (
-    <Card>
-      <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="pl-6">Actions</TableHead>
-            <TableHead>Vendor</TableHead>
-            <TableHead>Category</TableHead>
-            <TableHead className="pr-6">Country</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {masterVendors.map((v) => (
-            <TableRow key={v.name}>
-              <TableCell className="pl-6">
-                <RowActions />
-              </TableCell>
-              <TableCell className="font-medium">{v.name}</TableCell>
-              <TableCell className="text-muted-foreground">{v.category}</TableCell>
-              <TableCell className="pr-6 text-muted-foreground">{v.country}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </Card>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
+      <div className="bg-card border rounded-lg shadow-xl p-5 w-96" onClick={(e) => e.stopPropagation()}>
+        <h3 className="font-semibold mb-4">{isCreate ? 'Add Category' : 'Edit Category'}</h3>
+        <div className="flex flex-col gap-3">
+          <div>
+            <label className="text-xs font-medium">Name</label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Category name" className="mt-1" />
+          </div>
+          <div>
+            <label className="text-xs font-medium">Financial Group</label>
+            <select value={fgId} onChange={(e) => setFgId(Number(e.target.value))} className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm">
+              {fgList.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium">Classification</label>
+            <select value={clId ?? ''} onChange={(e) => setClId(e.target.value ? Number(e.target.value) : null)} className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm">
+              <option value="">— None —</option>
+              {clList.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={() => onSave({ name, financialGroupId: fgId, classificationId: clId })} disabled={!name.trim()}>
+            {isCreate ? 'Create' : 'Save'}
+          </Button>
+        </div>
+      </div>
+    </div>
   )
+}
+
+// ─── Simple lookup grids (Classifications, Financial Groups, Department Groups) ─
+
+function LookupGrid({ title, rows, addTrigger, onSave, onDelete }: {
+  title: string; rows: LookupItem[]; addTrigger: number;
+  onSave: (form: { name: string }) => Promise<void>; onDelete: (id: number) => Promise<void>;
+}) {
+  const [editModal, setEditModal] = useState<LookupItem | null>(null)
+  const [delId, setDelId] = useState<number | null>(null)
+  const [name, setName] = useState('')
+
+  useEffect(() => { if (addTrigger > 0) setEditModal({ id: 0, name: '' }) }, [addTrigger])
+
+  return (
+    <>
+      <Card>
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="pl-6 w-20">Actions</TableHead>
+              <TableHead>{title}</TableHead>
+              <TableHead className="pr-6 w-20">ID</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.length === 0 && (
+              <TableRow><TableCell colSpan={3} className="py-8 text-center text-muted-foreground">No entries found.</TableCell></TableRow>
+            )}
+            {rows.map((r) => (
+              <TableRow key={r.id}>
+                <TableCell className="pl-6">
+                  <RowActions onEdit={() => { setEditModal(r); setName(r.name) }} onDelete={() => setDelId(r.id)} />
+                </TableCell>
+                <TableCell className="font-medium">{r.name}</TableCell>
+                <TableCell className="pr-6 text-xs text-muted-foreground">{r.id}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
+
+      {editModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setEditModal(null)}>
+          <div className="bg-card border rounded-lg shadow-xl p-5 w-80" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold mb-3">{editModal.id > 0 ? 'Edit' : 'Add'} {title}</h3>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" className="mb-4" />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setEditModal(null)}>Cancel</Button>
+              <Button size="sm" onClick={async () => { await onSave({ name }); setEditModal(null) }} disabled={!name.trim()}>
+                {editModal.id > 0 ? 'Save' : 'Create'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {delId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setDelId(null)}>
+          <div className="bg-card border rounded-lg shadow-xl p-5 w-80" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold mb-2">Delete?</h3>
+            <p className="text-sm text-muted-foreground mb-4">This cannot be undone.</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setDelId(null)}>Cancel</Button>
+              <Button size="sm" variant="destructive" onClick={async () => { await onDelete(delId); setDelId(null) }}>Delete</Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+// Reusable hook for simple lookup CRUD
+function useLookupCrud(endpoint: string) {
+  const [rows, setRows] = useState<LookupItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const load = async () => {
+    setLoading(true)
+    try { const { data } = await httpClient.get(endpoint); setRows((data as any[]).map((r: any) => ({ id: r.id, name: r.name }))) } catch {}
+    setLoading(false)
+  }
+  useEffect(() => { load() }, [])
+  const save = async (form: { name: string }, editId?: number) => {
+    if (editId && editId > 0) {
+      await httpClient.put(`${endpoint}/${editId}`, { id: editId, name: form.name, isActive: true })
+    } else {
+      await httpClient.post(endpoint, { name: form.name, isActive: true })
+    }
+    await load()
+  }
+  const del = async (id: number) => { try { await httpClient.delete(`${endpoint}/${id}`) } catch {}; await load() }
+  return { rows, loading, save, del }
+}
+
+function ClassificationsGrid({ addTrigger }: { addTrigger: number }) {
+  const { rows, loading, save, del } = useLookupCrud('/api/classifications')
+  if (loading) return <div className="flex justify-center py-12"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
+  return <LookupGrid title="Classification" rows={rows} addTrigger={addTrigger}
+    onSave={async (f) => save(f)} onDelete={async (id) => del(id)} />
+}
+
+function FinancialGroupsGrid({ addTrigger }: { addTrigger: number }) {
+  const { rows, loading, save, del } = useLookupCrud('/api/financialgroups')
+  if (loading) return <div className="flex justify-center py-12"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
+  return <LookupGrid title="Financial Group" rows={rows} addTrigger={addTrigger}
+    onSave={async (f) => save(f)} onDelete={async (id) => del(id)} />
+}
+
+function DepartmentGroupsGrid({ addTrigger }: { addTrigger: number }) {
+  const { rows, loading, save, del } = useLookupCrud('/api/departmentgroups')
+  if (loading) return <div className="flex justify-center py-12"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
+  return <LookupGrid title="Department Group" rows={rows} addTrigger={addTrigger}
+    onSave={async (f) => save(f)} onDelete={async (id) => del(id)} />
 }
 
 function CurrenciesGrid() {
-  const [rows, setRows] = useState(currencies)
+  const [rows, setRows] = useState<{ id: number; code: string; rate: number }[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const { data } = await httpClient.get('/api/currencies')
+      setRows((data as any[]).map((c: any) => ({ id: c.id, code: c.code, rate: c.exchangeRateToUSD })))
+    } catch {}
+    setLoading(false)
+  }
+  useEffect(() => { load() }, [])
+
+  const saveRate = async (id: number, rate: number) => {
+    try { await httpClient.put(`/api/currencies/${id}`, { id, code: rows.find(r => r.id === id)?.code, exchangeRateToUSD: rate, updateDT: new Date().toISOString() }); await load() } catch {}
+  }
+
+  if (loading) return <div className="flex justify-center py-12"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
+
   return (
     <Card>
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="pl-6">Actions</TableHead>
-            <TableHead>Code</TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead className="pr-6 w-48">Exchange Rate</TableHead>
+            <TableHead className="pl-6">Code</TableHead>
+            <TableHead className="pr-6">Exchange Rate (to USD)</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((c, i) => (
-            <TableRow key={c.code}>
-              <TableCell className="pl-6">
-                <RowActions />
-              </TableCell>
-              <TableCell className="font-mono font-medium">{c.code}</TableCell>
-              <TableCell className="text-muted-foreground">{c.name}</TableCell>
+          {rows.map((c) => (
+            <TableRow key={c.id}>
+              <TableCell className="pl-6 font-mono font-medium">{c.code}</TableCell>
               <TableCell className="pr-6">
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={c.rate}
-                  onChange={(e) =>
-                    setRows((prev) =>
-                      prev.map((p, j) =>
-                        j === i ? { ...p, rate: Number(e.target.value) } : p,
-                      ),
-                    )
-                  }
-                  className="h-8 w-32"
-                  disabled={c.code === 'USD'}
-                />
+                <Input type="number" step="0.000001" value={c.rate}
+                  onChange={(e) => setRows((prev) => prev.map((p) => p.id === c.id ? { ...p, rate: Number(e.target.value) } : p))}
+                  onBlur={() => saveRate(c.id, c.rate)}
+                  className="h-8 w-40" disabled={c.code === 'USD'} />
               </TableCell>
             </TableRow>
           ))}

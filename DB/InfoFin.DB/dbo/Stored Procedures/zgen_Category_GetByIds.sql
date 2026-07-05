@@ -4,25 +4,19 @@
 -- ===================================================================
 
 CREATE   PROCEDURE [dbo].[zgen_Category_GetByIds]
-  (@FinancialGroupId INT=NULL,@ClassificationId INT=NULL,@IsActive bit=NULL,@SortDirection varchar(5)='ASC')
+    @FinancialGroupId INT = NULL,
+    @ClassificationId INT = NULL,
+    @IsActive BIT = NULL,
+    @SortDirection VARCHAR(4) = 'ASC'
 AS
 BEGIN
-  SET NOCOUNT ON;
-  SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
-
-  IF @IsActive IS NULL
-  BEGIN
-    SELECT * FROM [dbo].[Category] WHERE (@FinancialGroupId IS NULL OR [FinancialGroupId] = @FinancialGroupId) AND (@ClassificationId IS NULL OR [ClassificationId] = @ClassificationId) 
-    ORDER BY 
-    CASE WHEN @SortDirection = 'ASC' THEN CreateDT END ASC, CASE WHEN @SortDirection = 'DESC' THEN CreateDT END DESC
-    OPTION (RECOMPILE);
-  END
-  ELSE
-  BEGIN
-    SELECT * FROM [dbo].[Category] WHERE (@FinancialGroupId IS NULL OR [FinancialGroupId] = @FinancialGroupId) AND (@ClassificationId IS NULL OR [ClassificationId] = @ClassificationId) 
-    AND IsActive = @IsActive
-    ORDER BY 
-    CASE WHEN @SortDirection = 'ASC' THEN CreateDT END ASC, CASE WHEN @SortDirection = 'DESC' THEN CreateDT END DESC
-    OPTION (RECOMPILE);
-  END
+    SET NOCOUNT ON;
+    SELECT Id, Name, FinancialGroupId, ClassificationId, IsActive
+    FROM [dbo].[Category]
+    WHERE (@FinancialGroupId IS NULL OR FinancialGroupId = @FinancialGroupId)
+      AND (@ClassificationId IS NULL OR ClassificationId = @ClassificationId)
+      AND (@IsActive IS NULL OR IsActive = @IsActive)
+    ORDER BY
+        CASE WHEN @SortDirection = 'DESC' THEN Id END DESC,
+        CASE WHEN @SortDirection <> 'DESC' THEN Id END ASC;
 END

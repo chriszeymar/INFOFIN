@@ -3,25 +3,9 @@
 -- Description    : Select By Id User
 -- ===================================================================
 
-CREATE   PROCEDURE [dbo].[zgen_User_GetById]
-  (@Id INT, @IsActive bit=NULL)
-AS
-BEGIN
-  SET NOCOUNT ON;
-  SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
-
-  IF @Id IS NULL
-  BEGIN
-    IF @IsActive IS NULL
-      SELECT * FROM [dbo].[User] ORDER BY [Id] ASC;
-    ELSE
-      SELECT * FROM [dbo].[User] WHERE [IsActive] = @IsActive ORDER BY [Id] ASC;
-  END
-  ELSE
-  BEGIN
-    IF @IsActive IS NULL
-      SELECT * FROM [dbo].[User] WHERE [Id] = @Id;
-    ELSE
-      SELECT * FROM [dbo].[User] WHERE [Id] = @Id AND IsActive = @IsActive;
-  END
-END
+CREATE   PROCEDURE dbo.zgen_User_GetById
+    @Id INT = NULL, @IsActive BIT = NULL
+AS BEGIN SET NOCOUNT ON;
+    SELECT Id, Email, PasswordHash, RoleId, DepartmentId, IsActive, CreateDT, UpdateDT
+    FROM dbo.[User] WHERE (@Id IS NULL OR Id = @Id) AND (@IsActive IS NULL OR IsActive = @IsActive);
+END;

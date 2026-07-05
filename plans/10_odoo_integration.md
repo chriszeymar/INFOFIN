@@ -1,360 +1,207 @@
-# Phase 10: Odoo Integration — Investigation & Plan
+# Phase 10: Odoo Integration
 
-> Pull Odoo financial data for InfoFin reporting and budget actuals
-
----
-
-## Odoo Modules Visible in Screenshot
-
-| Module | French Name | Use for InfoFin |
-|--------|------------|-----------------|
-| **Accounting** | Comptabilité | Actual expenses/revenues, journal entries |
-| **Sales** | Ventes | Revenue data for BU reporting |
-| **Purchases** | Achats | Purchase orders, vendor costs |
-| **Contacts** | Contacts | Vendors, suppliers, customers |
-| **Employees** | Employés | Department structure, users |
-| **Dashboard** | Tableaux de bord | Pre-built Odoo reports |
-| **Calendar** | Calendrier | Payment schedules |
-| **Planning** | Planning | Budget planning |
+> Odoo provides raw data. InfoFin mirrors it, then aggregates into clean actuals. Planning lives on top. Lean: 1 new table, 2 new columns, 4 sync steps.
 
 ---
 
-## Deployment — Zero Extra Work
+## Architecture
 
-The `OdooBackgroundService` runs **inside the same API process**. Wherever you deploy the API, the sync runs with it:
-
-| Deployment Method | What Happens |
-|-------------------|-------------|
-| **Docker** | `docker compose up` → API + sync start together in one container |
-| **IIS** | Deploy API to IIS → sync starts as part of the API app pool |
-| **Azure / cloud VM** | Same as IIS — runs in-process |
-
-```bash
-# Example: Docker deployment
-docker compose up -d
-# → SQL Server starts on :1433
-# → InfoFin API starts on :5292 (Odoo sync starts inside)
-# → Sync runs daily at 2 AM, no extra container needed
+```
+Odoo
+  │
+  ▼
+┌─────────────────────────────────────────────┐
+│ RAW           OdooJournalLine (1 table)     │  ← stored, upserted by OdooLineId
+│               Journal entries as-is          │
+└─────────────────────────────────────────────┘
+  │
+  ▼
+┌─────────────────────────────────────────────┐
+│ MIRROR        Department.OdooCompanyId      │  ← 2 columns on existing tables
+│               Category.OdooAccountId         │     InsUpd by Odoo ID
+└─────────────────────────────────────────────┘
+  │
+  ▼  (service method — not persisted)
+┌─────────────────────────────────────────────┐
+│ TRANSFORM     Join Raw→Mirror               │  ← 1 SQL query
+│               Filter state≠draft            │
+│               Aggregate by Dept×Cat×Period  │
+└─────────────────────────────────────────────┘
+  │
+  ▼
+┌─────────────────────────────────────────────┐
+│ ACTUALS       Actuals table (1 new table)   │  ← Odoo-derived, read-only
+│               "What happened"                │
+└─────────────────────────────────────────────┘
+  │
+  ▼
+┌─────────────────────────────────────────────┐
+│ PLANNING      Budget, targets, adjustments  │  ← Phase 11
+│               "What we want"                 │
+└─────────────────────────────────────────────┘
 ```
 
-### Future: Extract to separate microservice
+**Transform is a service method, not a table.** It runs one SQL query that joins Raw through Mirror, aggregates, and writes to Actuals. No intermediate storage.
 
-```bash
-# If sync becomes too heavy, extract to its own container:
-docker run infofin-odoo-sync:latest
-# Same IOdooAdapter, different hosting model
+---
+
+## What Odoo Gives Us
+
+Discovered from `https://erp.infoset.cd` (database: `INFOSET_TEST`).
+
+### Companies → Departments
+
+| Odoo Company | → InfoFin Department |
+|-------------|---------------------|
+| INFOSET SARL (id=1) | INFOSET SARL |
+| GENISYS (id=2) | GENISYS |
+| AGMUX SA (id=7) | AGMUX SA |
+
+### Accounts → Categories
+
+2,585 total. Only P&L types become categories:
+
+| Odoo `account_type` | → InfoFin `FinancialGroup` |
+|---------------------|---------------------------|
+| `income`, `income_other` | Revenue (FG 1) |
+| `expense_direct_cost` | COS (FG 2) |
+| `expense` | Variable OPEX (FG 4) |
+
+Balance sheet accounts (asset, liability, equity) are ignored — not relevant to P&L planning.
+
+### Journal Entries → Actuals
+
+Each line = debit/credit to one account, at one company, on one date. These are the raw actuals that feed the matrix.
+
+---
+
+## Sync Steps
+
+### Step 1: Authenticate
+`authenticate(database, username, password, {})` → returns `uid`
+
+### Step 2: Sync Master Data
+Fetch `res.company` and `account.account` (P&L only). For each:
+- Find existing by Odoo ID → InsUpd (update if changed)
+- Not found → InsUpd (create new)
+- Users' manually-added entities (no Odoo ID) are untouched
+
+### Step 3: Sync Journal Lines
+Fetch `account.move.line` for the target year. Two modes:
+
+```
+Full sync (first run):         domain = [date range, state!=draft]
+Incremental (subsequent):      domain = [write_date > lastSync, date range, state!=draft]
+```
+
+Upsert into `OdooJournalLine` by `OdooLineId`. Update changed, insert new, never delete.
+
+### Step 4: Aggregate to Actuals
+```sql
+INSERT INTO Actuals (DepartmentId, CategoryId, Year, Month, Amount)
+SELECT d.Id, c.Id, jl.Year, jl.Month, SUM(jl.Credit - jl.Debit)
+FROM OdooJournalLine jl
+JOIN Department d ON d.OdooCompanyId = jl.OdooCompanyId
+JOIN Category c ON c.OdooAccountId = jl.OdooAccountId
+WHERE jl.State != 'draft'
+GROUP BY d.Id, c.Id, jl.Year, jl.Month
+ON CONFLICT (DepartmentId, CategoryId, Year, Month) DO UPDATE SET Amount = EXCLUDED.Amount
 ```
 
 ---
 
-## Odoo → InfoFin Schema Mapping
+## Database Changes
 
-### How Odoo data maps to your existing tables
-
-```
-Odoo                                      InfoFin DB
-─────                                     ──────────
-
-account.account                           Category
-├─ Code: "641000" Name: "Salaires" ──►    ├─ Payrolls expenses
-├─ Code: "625000" Name: "Déplacements"──► ├─ Transport Costs
-└─ Code: "701000" Name: "Ventes" ────►    └─ Sales Rev-Hardwares
-
-account.move.line (journal entries)       Budget (actuals)
-├─ Jan: 641000 = 45,000 FC ─────────►     Budget.ActualAmount += 45,000
-├─ Feb: 625000 = 12,000 FC ─────────►     Budget.ActualAmount += 12,000
-└─ Mar: 701000 = 220,000 FC ────────►     Budget.ActualAmount += 220,000
-
-res.partner (contacts)                    Vendor
-├─ "Orange RDC" ────────────────────►     Vendor.Name
-└─ "Vodacom" ───────────────────────►     Vendor.Name
-
-hr.department                             Department (map via OdooAccountMapping)
-├─ "IT & Cloud" ────────────────────►     Department.Name
-└─ "Finance" ───────────────────────►     Department.Name
-```
-
-### New DB Table: OdooAccountMapping
-
-The only new table needed — links Odoo account codes to your InfoFin categories:
+### New: `OdooJournalLine`
 
 ```sql
-CREATE TABLE [dbo].[OdooAccountMapping] (
+CREATE TABLE [dbo].[OdooJournalLine] (
     [Id] INT IDENTITY(1,1) PRIMARY KEY,
-    [OdooAccountCode] NVARCHAR(20) NOT NULL,
-    [OdooAccountName] NVARCHAR(200) NOT NULL,
-    [InfoFinCategoryId] INT NOT NULL,
-    [IsActive] BIT NOT NULL DEFAULT 1,
-    CONSTRAINT [FK_OdooAccountMapping_Category]
-        FOREIGN KEY ([InfoFinCategoryId]) REFERENCES [dbo].[Category]([Id])
+    [OdooLineId] INT NOT NULL,
+    [OdooCompanyId] INT NOT NULL,
+    [OdooCompanyName] NVARCHAR(200) NULL,
+    [OdooAccountId] INT NOT NULL,
+    [OdooAccountCode] NVARCHAR(20) NULL,
+    [OdooAccountName] NVARCHAR(200) NULL,
+    [Date] DATE NOT NULL,
+    [Year] AS YEAR([Date]),
+    [Month] AS MONTH([Date]),
+    [Debit] DECIMAL(18,2) NOT NULL DEFAULT 0,
+    [Credit] DECIMAL(18,2) NOT NULL DEFAULT 0,
+    [NetAmount] AS (Credit - Debit),
+    [State] NVARCHAR(20) NULL,
+    [OdooWriteDate] DATETIME NULL,
+    [ImportedAt] DATETIME NOT NULL DEFAULT GETDATE()
+);
+CREATE UNIQUE INDEX [IX_OdooJournalLine_OdooLineId] ON [dbo].[OdooJournalLine]([OdooLineId]);
+```
+
+### New: `Actuals`
+
+```sql
+CREATE TABLE [dbo].[Actuals] (
+    [Id] INT IDENTITY(1,1) PRIMARY KEY,
+    [DepartmentId] INT NOT NULL,
+    [CategoryId] INT NOT NULL,
+    [Year] INT NOT NULL,
+    [Month] INT NULL,
+    [Amount] DECIMAL(18,2) NOT NULL,
+    CONSTRAINT [FK_Actuals_Department] FOREIGN KEY ([DepartmentId]) REFERENCES [dbo].[Department]([Id]),
+    CONSTRAINT [FK_Actuals_Category] FOREIGN KEY ([CategoryId]) REFERENCES [dbo].[Category]([Id]),
+    CONSTRAINT [UQ_Actuals_DeptCatPeriod] UNIQUE([DepartmentId], [CategoryId], [Year], [Month])
 );
 ```
 
-Admin fills this in Master Data → Odoo Mappings tab. Once populated, the sync knows exactly where every Odoo transaction goes.
+### Alter: Mirror Columns
 
----
-
-## Interchangeability — Swapping Odoo Instances
-
-The integration is **instance-agnostic** by design. Only 3 values in `appsettings.json` change between environments:
-
-```json
-{
-  "Odoo": {
-    "Url": "...",      // ← sandbox / staging / production URL
-    "Database": "...",  // ← Odoo database name
-    "ApiKey": "..."     // ← user API key
-  }
-}
-```
-
-| Environment | URL Example |
-|-------------|------------|
-| **Sandbox** | `https://infoset-sandbox.odoo.com` |
-| **Production** | `https://odoo.infoset.cd` |
-| **Local dev** | `http://localhost:8069` |
-
-**No code changes needed to switch.** The `OdooClient` reads config at startup. Different environments are loaded via standard ASP.NET `appsettings.{Environment}.json` files.
-
-```
-Odoo sandbox   ──► appsettings.Development.json
-Odoo production ──► appsettings.Production.json
-```
-
-### Abstracted for Future ERPs
-
-```csharp
-IErpClient.cs           ← interface (contract)
-OdooClient.cs           ← JSON-RPC implementation
-```
-
-If you ever switch to Sage, SAP, or another ERP:
-
-```csharp
-SageClient.cs           ← new, same IErpClient interface
-SapClient.cs            ← new, same IErpClient interface
-```
-
-The controllers and services only depend on the interface. Swap implementations via DI.
-
----
-
-## Can I Start Without Your Odoo Configs?
-
-**Yes.** The Odoo JSON-RPC API is standardized across every Odoo instance:
-
-| What's the same everywhere | What differs per instance |
-|----------------------------|---------------------------|
-| JSON-RPC protocol (port 8069) | Server URL |
-| Model names (`account.move.line`, etc.) | Database name |
-| Query/search syntax (domain filters) | API key / credentials |
-| Response structures | Account code → category mapping |
-
-I can build the `OdooClient`, `OdooSyncService`, DB mapping table, and API endpoints **right now**. When you provide the 3 config values, it's plug-and-play.
-
----
-
-## How Odoo Integration Works
-
-Odoo exposes a **JSON-RPC** (or XML-RPC) API on port 8069.
-
-### Connection Pattern
-
-```
-InfoFin.Api ──JSON-RPC──► Odoo Server (port 8069)
-                            │
-                            ├─ common endpoint: authenticate()
-                            └─ object endpoint: execute_kw()
-                                  │
-                                  ├─ account.move (journal entries)
-                                  ├─ account.move.line (line items)
-                                  ├─ account.account (chart of accounts)
-                                  ├─ purchase.order (purchase orders)
-                                  ├─ sale.order (sales orders)
-                                  ├─ res.partner (contacts/vendors)
-                                  └─ hr.employee (employees)
-```
-
-### Authentication
-
-```csharp
-// 1. Authenticate
-/ xmlrpc / 2 / common endpoint
-authenticate(db, username, password / api_key)
-→ returns user_id
-
-// 2. Query models
-/ xmlrpc / 2 / object endpoint
-execute_kw(db, user_id, password, model, method, args, kwargs)
-```
-
-### Example: Fetch journal entries
-
-```csharp
-execute_kw(db, uid, pass,
-    "account.move.line",
-    "search_read",
-    // domain filter
-    [[("date", ">=", "2026-01-01"), ("date", "<=", "2026-12-31")]],
-    // fields to return
-    { "fields": ["date", "name", "debit", "credit", "account_id", "partner_id"] }
-)
+```sql
+ALTER TABLE [dbo].[Department] ADD [OdooCompanyId] INT NULL;
+ALTER TABLE [dbo].[Category] ADD
+    [OdooAccountId] INT NULL,
+    [OdooAccountCode] NVARCHAR(20) NULL,
+    [OdooAccountType] NVARCHAR(50) NULL;
 ```
 
 ---
 
-## What We Need from Odoo
+## Adapter Changes
 
-### For Budget Actuals (Reporting)
-
-| Odoo Model | Fields | Maps to InfoFin |
-|------------|--------|-----------------|
-| `account.move.line` | date, debit, credit, account_id, partner_id, name | Actual expenses/revenues by category |
-| `account.account` | code, name, account_type | Financial categories |
-| `res.partner` | name, email, phone | Vendors |
-
-### For Department Structure
-
-| Odoo Model | Fields | Maps to InfoFin |
-|------------|--------|-----------------|
-| `hr.department` | name, parent_id | Department hierarchy |
-| `hr.employee` | name, department_id, work_email | Employee list |
-
-### Sync Strategy
-
-| Data | Frequency | Notes |
-|------|-----------|-------|
-| Chart of accounts | On demand / weekly | Rarely changes |
-| Journal entries (actuals) | Daily | Populates budget actuals |
-| Vendors/partners | Weekly | Vendor master data |
-| Departments | On demand | Structure mapping |
+| Change | Details |
+|--------|---------|
+| Fix `AuthenticateAsync` | Add 4th arg `new Dictionary<string,object>()` |
+| Add `FetchCompaniesAsync` | `res.company` → `List<OdooCompany>` |
+| Enhance `ChartAccount` | Add `Id`, `CompanyId`, `CompanyName` |
+| Replace `FetchActualsAsync` | → `FetchJournalLinesAsync(year, DateTime? since)` — raw, ungrouped |
+| Json robustness | Handle `false`/`null`/array/string for `account_id` and `company_id` |
 
 ---
 
-## Architecture Decision: Adapter Pattern
+## API
 
-The integration follows an **adapter pattern** with separation of concerns:
+| Endpoint | Does |
+|----------|------|
+| `POST /api/odoo/sync` | Full sync (steps 1-4) |
+| `POST /api/odoo/sync-journals/{year}` | Steps 3-4 only (re-fetch + re-aggregate) |
+| `GET /api/odoo/health` | Auth check |
 
-```
-┌─────────────────────────────────────────────────────┐
-│                  InfoFin.Api                        │
-│                                                     │
-│  BudgetController  ←──  IOdooSyncService (contract) │
-│                                                     │
-│  ┌──────────────── OdooBackgroundService ────────┐  │
-│  │  IHostedService (runs on timer, e.g. daily)   │  │
-│  │       │                                        │  │
-│  │       └──► IOdooAdapter.FetchActuals()        │  │
-│  └───────────────────────────────────────────────┘  │
-└───────────────────────┬─────────────────────────────┘
-                        │ DI
-┌───────────────────────▼─────────────────────────────┐
-│         InfoFin.Integration.Odoo (Adapter)           │
-│                                                     │
-│  IOdooAdapter  ←──  OdooAdapter (JSON-RPC)          │
-│                                                     │
-│  • Pure logic, no runtime                           │
-│  • Can be extracted into microservice later         │
-│  • Interchangeable: swap OdooAdapter → SageAdapter  │
-└───────────────────────┬─────────────────────────────┘
-                        │
-┌───────────────────────▼─────────────────────────────┐
-│              Odoo Server (external)                  │
-│          JSON-RPC on port 8069                       │
-└─────────────────────────────────────────────────────┘
-```
+---
 
-### Why This Pattern
-
-| Concern | Where | Can Change Independently? |
-|---------|-------|--------------------------|
-| **Odoo communication** | `OdooAdapter` (class library) | ✅ Swap for Sage adapter |
-| **Sync schedule** | `OdooBackgroundService` (IHostedService) | ✅ Change timer, add CRON |
-| **Trigger (manual)** | Sync endpoint in controller | ✅ Add `/api/admin/sync-odoo` |
-| **Deployment** | Runs inside API process now | ✅ Extract to Worker Service / microservice later |
-
-### How It Runs in Production
-
-**Option A (Now):** `OdooBackgroundService` inside the API.
-
-```csharp
-// Runs inside the API process, on a timer
-public class OdooBackgroundService : BackgroundService
-{
-    protected override async Task ExecuteAsync(CancellationToken ct)
-    {
-        // Sync daily at 2 AM
-        while (!ct.IsCancellationRequested)
-        {
-            await Task.Delay(TimeSpan.FromHours(24), ct);
-            await _odooAdapter.SyncActuals(DateTime.UtcNow.Year, DateTime.UtcNow.Month);
-        }
-    }
-}
-```
-
-**Option B (Later):** Extract to a standalone Worker Service / microservice.
-
-```bash
-# Deploy separately, scales independently
-docker run infofin-odoo-sync:latest
-```
-
-Same `IOdooAdapter` interface, different hosting model.
-
-### New Project Structure
+## How Budget Consumes This (Phase 11)
 
 ```
-Integration/
-├── InfoFin.Integration.Odoo/          ← Adapter (class library)
-│   ├── IOdooAdapter.cs                ← Contract
-│   ├── OdooAdapter.cs                 ← JSON-RPC implementation
-│   ├── OdooOptions.cs                 ← Config class
-│   └── Models/
-│       ├── AccountMoveLine.cs
-│       ├── AccountAccount.cs
-│       └── ResPartner.cs
-│
-└── (future) InfoFin.Worker.Odoo/      ← Standalone Worker Service
-                                        │   (extracted later)
-                                        │   Same IOdooAdapter
-                                        └── Same OdooAdapter
+Matrix displays:  Actuals.Amount        ← Odoo baseline (Layer: Actuals)
+                + ActualAdjustment      ← human overlay (Layer: Planning)
+                vs Budget.Target        ← user-set goal (Layer: Planning)
 ```
 
-### DI Registration (in API Program.cs)
+`Actuals` is read-only after sync. `Budget` stores planning data. `ActualAdjustment` stores rectifications. Clean separation.
 
-```csharp
-// Adapter (can be used anywhere)
-builder.Services.Configure<OdooOptions>(builder.Configuration.GetSection("Odoo"));
-builder.Services.AddSingleton<IOdooAdapter, OdooAdapter>();
+---
 
-// Background sync (runs in API process)
-builder.Services.AddHostedService<OdooBackgroundService>();
+## Key Principles
 
-// Manual trigger (optional)
-builder.Services.AddScoped<IOdooSyncService, OdooSyncService>();
-```
-
-### Files to Create
-
-| # | File | Type |
-|---|------|------|
-| 1 | `Integration/InfoFin.Integration.Odoo/IOdooAdapter.cs` | Interface |
-| 2 | `Integration/InfoFin.Integration.Odoo/OdooAdapter.cs` | JSON-RPC implementation |
-| 3 | `Integration/InfoFin.Integration.Odoo/OdooOptions.cs` | Config DTO |
-| 4 | `Integration/InfoFin.Integration.Odoo/Models/*.cs` | Response DTOs |
-| 5 | `Integration/InfoFin.Integration.Odoo/InfoFin.Integration.Odoo.csproj` | Project |
-| 6 | `Api/.../Services/OdooBackgroundService.cs` | Daily sync runner |
-| 7 | `DB/.../03_odoo_mapping.sql` | Account mapping table |
-| 8 | `InfoFin.sln` | Add new project |
-
-## Status
-
-| Question | Answer |
-|----------|--------|
-| Adapter pattern (later → microservice)? | ✅ Yes — `IOdooAdapter` interface + separate class library |
-| Automatic daily sync? | ✅ Yes — `OdooBackgroundService` (IHostedService) |
-| Manual trigger available? | ✅ Yes — sync endpoint for ad-hoc runs |
-| Build without Odoo configs? | ✅ Yes — API is standard |
-| Interchangeable between sandbox/prod? | ✅ Yes — 3 config values |
-| Future-proof for other ERPs? | ✅ Yes — swap adapter implementations | |
+1. **Import expands, never shrinks.** InsUpd by Odoo ID — creates what's new, updates what changed, leaves user-added entities untouched.
+2. **Transform is a method, not a table.** One SQL query. No intermediate storage.
+3. **Actuals ≠ Budget.** Actuals = "what happened" (Odoo-derived, read-only). Budget = "what we planned" (human-set). Separate tables.
+4. **No Odoo calls at runtime.** After sync, everything reads from SQL Server.
+5. **Incremental by default.** First sync = full. Every sync after = `write_date > last`.

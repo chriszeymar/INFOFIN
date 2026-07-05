@@ -56,8 +56,8 @@ public sealed class OdooBackgroundService : BackgroundService
                 return;
             }
 
-            var actuals = await adapter.FetchActualsAsync(now.Year, now.Month, ct);
-            _logger.LogInformation("Odoo sync complete: {Count} account actuals fetched", actuals.Count);
+            var lines = await adapter.FetchJournalLinesAsync(now.Year, since: null, ct);
+            _logger.LogInformation("Odoo sync complete: {Count} journal lines fetched for {Year}", lines.Count, now.Year);
 
             // TODO: Upsert actuals into Budget table via Domain services
             // foreach (var actual in actuals)

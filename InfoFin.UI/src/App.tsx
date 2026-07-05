@@ -8,7 +8,7 @@ import ExpenseManagementPage from "./pages/ExpenseManagement";
 import RequestsPage from "./pages/SpendRequestsList";
 import { RequestForm } from "./components/requests/request-form";
 import RequestDetailPage from "./pages/SpendRequestDetail";
-import BudgetsPage from "./pages/BudgetManagement";
+import BudgetPage from "./pages/BudgetPage";
 import MasterDataPage from "./pages/MasterData";
 import UsersPage from "./pages/UserManagement";
 import ProfilePage from "./pages/Profile";
@@ -33,7 +33,7 @@ function App() {
             <Route path="expenses/requests/new" element={<RequestForm />} />
             <Route path="expenses/requests/:id" element={<RequestDetailPage />} />
             <Route path="spend-requests/*" element={<Navigate to="/expenses/requests" replace />} />
-            <Route path="budgets" element={<BudgetsPage />} />
+            <Route path="budgets" element={<BudgetPage />} />
             <Route path="master-data" element={<MasterDataPage />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="profile" element={<ProfilePage />} />
