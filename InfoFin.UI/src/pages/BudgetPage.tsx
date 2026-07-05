@@ -1,16 +1,25 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { BudgetNavigator, type Selection, type NavGroup } from '@/components/budgets/BudgetNavigator'
 import { BUGrid, SUGrid, type CellEdit, type RowAdd, type RowRemove } from '@/components/budgets/BudgetGrid'
 import type { Department, BudgetLineItem, ClassificationType } from '@/lib/budget-data'
+import { getDeptSummary } from '@/lib/budget-data'
 import { httpClient } from '@/api/httpClient'
 import { Select } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, Pencil, Save, X } from 'lucide-react'
+import { Loader2, LayoutGrid, RefreshCw, X, Check } from 'lucide-react'
 
 const YEARS = [2026, 2025, 2024]
+
+// ─── KPI formatting ─────────────────────────────────────────────────────────
+
+function fmtKpi(n: number) {
+  const abs = Math.abs(n)
+  if (abs >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
+  if (abs >= 1_000) return `$${(n / 1_000).toFixed(0)}K`
+  return `$${n.toLocaleString()}`
+}
 
 export default function BudgetPage() {
   const [year, setYear] = useState(2026)
@@ -51,6 +60,26 @@ export default function BudgetPage() {
   const filteredDepts = selection?.deptId && selection.deptId !== 'all'
     ? depts.filter((d) => d.id === selection.deptId)
     : depts
+
+  // ─── KPI summaries ────────────────────────────────────────────────────────
+
+  const kpis = useMemo(() => {
+    if (filteredDepts.length === 0) return null
+    const summaries = filteredDepts.map((d) => getDeptSummary(d, buSu))
+    const revenue = summaries.reduce((a, s) => ({ forecast: a.forecast + s.rev.forecast, execution: a.execution + s.rev.execution }), { forecast: 0, execution: 0 })
+    const grossMargin = summaries.reduce((a, s) => ({ forecast: a.forecast + s.grossMargin.forecast, execution: a.execution + s.grossMargin.execution }), { forecast: 0, execution: 0 })
+    const opex = summaries.reduce((a, s) => ({ forecast: a.forecast + s.opex.forecast, execution: a.execution + s.opex.execution }), { forecast: 0, execution: 0 })
+    const ebit = summaries.reduce((a, s) => ({ forecast: a.forecast + s.ebit.forecast, execution: a.execution + s.ebit.execution }), { forecast: 0, execution: 0 })
+    const opexBurn = opex.forecast > 0 ? Math.round((opex.execution / opex.forecast) * 100) : 0
+    return { revenue, grossMargin, opex, ebit, opexBurn, deptCount: filteredDepts.length }
+  }, [filteredDepts, buSu])
+
+  // Get selected group name
+  const selectedGroupName = useMemo(() => {
+    if (!selection) return buSu === 'BU' ? 'Business Unit' : 'Support Unit'
+    const group = navGroups.find((g) => g.id === selection.groupId)
+    return group?.name ?? (buSu === 'BU' ? 'Business Unit' : 'Support Unit')
+  }, [selection, navGroups, buSu])
 
   // ─── Edit handlers ────────────────────────────────────────────────────────
 
@@ -181,43 +210,108 @@ export default function BudgetPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-3 shadow-sm">
-        <Select value={String(year)} onChange={(e) => setYear(Number(e.target.value))} className="h-9 w-28">
+    <div className="flex flex-col gap-0">
+      {/* ─── Toolbar ────────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-2.5">
+        {/* Left: Navigator toggle + Year + View label */}
+        <button
+          onClick={() => setShowNav((v) => !v)}
+          className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
+        >
+          <LayoutGrid className="size-4 text-muted-foreground" />
+          <span>Navigator</span>
+        </button>
+
+        <Select value={String(year)} onChange={(e) => setYear(Number(e.target.value))} className="h-8 w-24 text-sm">
           {YEARS.map((y) => (<option key={y} value={String(y)}>{y}</option>))}
         </Select>
-        <Button variant="outline" size="sm" onClick={() => setShowNav((v) => !v)}>
-          {showNav ? 'Hide' : 'Show'} Navigator
-        </Button>
 
-        <div className="ml-auto flex items-center gap-2">
-          {!editable ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <RefreshCw className="size-3.5" />
+          <span className="font-medium text-foreground">
+            {buSu === 'BU' ? 'Business Unit — Full P&L' : 'Support Unit — OPEX'}
+          </span>
+        </div>
+
+        {/* Right: Edit status + actions */}
+        <div className="ml-auto flex items-center gap-3">
+          {editable ? (
+            <>
+              <span className="text-sm text-muted-foreground">
+                Editing {selectedGroupName} · FY {year}
+              </span>
+              <button
+                onClick={handleCancel}
+                className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <X className="size-4" />
+                Discard
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving || !hasChanges}
+                className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+                Save changes
+              </button>
+            </>
+          ) : (
             <Button variant="outline" size="sm" onClick={handleEditToggle} className="gap-1.5">
-              <Pencil className="size-3.5" />
               Edit Budget
             </Button>
-          ) : (
-            <>
-              {hasChanges && (
-                <span className="text-xs text-muted-foreground animate-pulse">Unsaved changes</span>
-              )}
-              <Button variant="ghost" size="sm" onClick={handleCancel} className="gap-1.5 text-muted-foreground">
-                <X className="size-3.5" />
-                Cancel
-              </Button>
-              <Button size="sm" onClick={handleSave} disabled={saving || !hasChanges} className="gap-1.5">
-                {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
-                Save
-              </Button>
-            </>
           )}
         </div>
       </div>
 
-      <div className="flex gap-4">
+      {/* ─── KPI Summary Cards ──────────────────────────────────────────────── */}
+      {kpis && (
+        <div className="flex items-stretch border-b border-border bg-card">
+          {/* Group info */}
+          <div className="flex flex-col justify-center border-r border-border px-5 py-3">
+            <span className="text-sm font-semibold text-foreground">{selectedGroupName}</span>
+            <span className="text-xs text-muted-foreground">
+              {kpis.deptCount} department{kpis.deptCount !== 1 ? 's' : ''} · FY {year} · {editable ? <span className="text-amber-600 font-medium">Draft</span> : <span className="text-emerald-600 font-medium">Published</span>}
+            </span>
+          </div>
+          {/* KPI cards */}
+          {buSu === 'BU' && (
+            <div className="flex flex-col justify-center border-r border-border px-5 py-3">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Revenue</span>
+              <span className="text-lg font-bold text-foreground">{fmtKpi(kpis.revenue.forecast)}</span>
+              <span className="text-[10px] text-muted-foreground">{fmtKpi(kpis.revenue.execution)} to date</span>
+            </div>
+          )}
+          {buSu === 'BU' && (
+            <div className="flex flex-col justify-center border-r border-border px-5 py-3">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Gross Margin</span>
+              <span className="text-lg font-bold text-foreground">{fmtKpi(kpis.grossMargin.forecast)}</span>
+              <span className="text-[10px] text-muted-foreground">{fmtKpi(kpis.grossMargin.execution)} to date</span>
+            </div>
+          )}
+          <div className="flex flex-col justify-center border-r border-border px-5 py-3">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Total OPEX</span>
+            <span className="text-lg font-bold text-foreground">{fmtKpi(kpis.opex.forecast)}</span>
+            <span className="text-[10px] text-muted-foreground">{fmtKpi(kpis.opex.execution)} spent</span>
+          </div>
+          {buSu === 'BU' && (
+            <div className="flex flex-col justify-center border-r border-border px-5 py-3">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">EBIT</span>
+              <span className="text-lg font-bold text-foreground">{fmtKpi(kpis.ebit.forecast)}</span>
+              <span className="text-[10px] text-muted-foreground">{fmtKpi(kpis.ebit.execution)} to date</span>
+            </div>
+          )}
+          <div className="flex flex-col justify-center px-5 py-3">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">OPEX Burn</span>
+            <span className="text-lg font-bold text-foreground">{kpis.opexBurn}%</span>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Main content ───────────────────────────────────────────────────── */}
+      <div className="flex flex-1 min-h-0">
         {showNav && (
-          <div className="shrink-0">
+          <div className="shrink-0 border-r border-border">
             <BudgetNavigator
               groups={navGroups}
               selection={selection}
@@ -228,51 +322,30 @@ export default function BudgetPage() {
           </div>
         )}
 
-        <div className="flex-1 min-w-0">
-          <Card className="shadow-sm">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">
-                  {buSu === 'BU' ? 'Business Units' : 'Support Units'} — {year}
-                  {selection?.deptId && selection.deptId !== 'all' && (
-                    <span className="ml-2 text-sm font-normal text-muted-foreground">
-                      (filtered to {filteredDepts[0]?.name ?? selection.deptId})
-                    </span>
-                  )}
-                </CardTitle>
-                {editable && (
-                  <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                    Editing
-                  </span>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              {loading ? (
-                <div className="flex justify-center py-16"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
-              ) : filteredDepts.length === 0 ? (
-                <div className="py-16 text-center text-muted-foreground text-sm">No actuals data for {year}. Run Odoo Sync from Master Data.</div>
-              ) : buSu === 'BU' ? (
-                <BUGrid
-                  departments={filteredDepts}
-                  editable={editable}
-                  onCellEdit={handleCellEdit}
-                  onRowAdd={handleRowAdd}
-                  onRowRemove={handleRowRemove}
-                  onLabelEdit={handleLabelEdit}
-                />
-              ) : (
-                <SUGrid
-                  departments={filteredDepts}
-                  editable={editable}
-                  onCellEdit={handleCellEdit}
-                  onRowAdd={handleRowAdd}
-                  onRowRemove={handleRowRemove}
-                  onLabelEdit={handleLabelEdit}
-                />
-              )}
-            </CardContent>
-          </Card>
+        <div className="flex-1 min-w-0 overflow-auto">
+          {loading ? (
+            <div className="flex justify-center py-16"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
+          ) : filteredDepts.length === 0 ? (
+            <div className="py-16 text-center text-muted-foreground text-sm">No actuals data for {year}. Run Odoo Sync from Master Data.</div>
+          ) : buSu === 'BU' ? (
+            <BUGrid
+              departments={filteredDepts}
+              editable={editable}
+              onCellEdit={handleCellEdit}
+              onRowAdd={handleRowAdd}
+              onRowRemove={handleRowRemove}
+              onLabelEdit={handleLabelEdit}
+            />
+          ) : (
+            <SUGrid
+              departments={filteredDepts}
+              editable={editable}
+              onCellEdit={handleCellEdit}
+              onRowAdd={handleRowAdd}
+              onRowRemove={handleRowRemove}
+              onLabelEdit={handleLabelEdit}
+            />
+          )}
         </div>
       </div>
     </div>
