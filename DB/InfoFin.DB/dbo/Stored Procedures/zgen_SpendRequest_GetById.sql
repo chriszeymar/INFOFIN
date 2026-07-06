@@ -3,7 +3,7 @@
 -- Description    : Select By Id SpendRequest
 -- ===================================================================
 
-CREATE   PROCEDURE [dbo].[zgen_SpendRequest_GetById]
+CREATE OR ALTER PROCEDURE [dbo].[zgen_SpendRequest_GetById]
   (@Id INT, @IsActive bit=NULL)
 AS
 BEGIN
@@ -12,16 +12,11 @@ BEGIN
 
   IF @Id IS NULL
   BEGIN
-    IF @IsActive IS NULL
-      SELECT * FROM [dbo].[SpendRequest] ORDER BY [Id] ASC;
-    ELSE
-      SELECT * FROM [dbo].[SpendRequest] WHERE [IsActive] = @IsActive ORDER BY [Id] ASC;
+    SELECT * FROM [dbo].[SpendRequest] ORDER BY [Id] ASC;
   END
   ELSE
   BEGIN
-    IF @IsActive IS NULL
-      SELECT * FROM [dbo].[SpendRequest] WHERE [Id] = @Id;
-    ELSE
-      SELECT * FROM [dbo].[SpendRequest] WHERE [Id] = @Id AND IsActive = @IsActive;
+    SELECT * FROM [dbo].[SpendRequest] WHERE [Id] = @Id;
   END
 END
+

@@ -136,6 +136,7 @@ public class SpendRequestsController : ControllerBase
             DepartmentId = request.DepartmentId,
             CategoryId = request.CategoryId,
             EncoderId = context.UserId,
+            AssignedToUserId = request.AssignedToUserId,
             Amount = request.Amount,
             CurrencyId = request.CurrencyId,
             LockedExchangeRate = currency.ExchangeRateToUSD,

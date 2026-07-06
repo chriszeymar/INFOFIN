@@ -3,7 +3,7 @@
 -- Description    : Hard Delete SpendRequest
 -- ===================================================================
 
-CREATE   PROCEDURE [dbo].[zgen_SpendRequest_DelHrd]
+CREATE OR ALTER PROCEDURE [dbo].[zgen_SpendRequest_DelHrd]
   (@Id int, @RetMsg NVARCHAR(MAX) OUTPUT)
 AS
 BEGIN
@@ -36,3 +36,4 @@ BEGIN
     RETURN 1
   END CATCH
 END
+

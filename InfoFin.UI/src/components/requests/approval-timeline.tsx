@@ -1,11 +1,18 @@
 import { Check, X, Clock, Circle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { SpendRequest } from '@/lib/mock-data'
+
+export interface TimelineStep {
+  step: string
+  actor: string
+  state: 'done' | 'current' | 'declined' | 'pending'
+  date?: string
+  comment?: string
+}
 
 export function ApprovalTimeline({
   timeline,
 }: {
-  timeline: SpendRequest['timeline']
+  timeline: TimelineStep[]
 }) {
   return (
     <ol className="flex flex-col">

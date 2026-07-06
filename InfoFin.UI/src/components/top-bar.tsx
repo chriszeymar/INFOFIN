@@ -6,7 +6,6 @@ import { ChevronRight, Home, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useSession } from '@/auth/AuthContext'
-import { spendRequests } from '@/lib/mock-data'
 
 const LABELS: Record<string, string> = {
   dashboard: 'Dashboard',
@@ -23,8 +22,7 @@ const LABELS: Record<string, string> = {
 function labelFor(segment: string, prevSegment?: string) {
   if (LABELS[segment]) return LABELS[segment]
   if (prevSegment === 'spend-requests' || prevSegment === 'requests' || prevSegment === 'expenses') {
-    const req = spendRequests.find((r) => r.id === segment)
-    if (req) return req.ref
+    return `SR #${segment}`
   }
   return segment.charAt(0).toUpperCase() + segment.slice(1)
 }

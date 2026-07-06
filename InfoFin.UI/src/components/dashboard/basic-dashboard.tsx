@@ -14,20 +14,22 @@ import {
 } from '@/components/ui/table'
 import { StatusBadge } from '@/components/requests/status-badge'
 import { useSession } from '@/auth/AuthContext'
-import { spendRequests, formatCurrency } from '@/lib/mock-data'
+import { formatCurrency, type SpendRequestStatus } from '@/types/spend-request'
+
+// Temporary empty state — will be replaced with real API data
+const spendRequests: Array<{
+  id: number; referenceNumber: string; department?: { name?: string };
+  category?: { name?: string }; amount: number; currency?: { code?: string };
+  status: SpendRequestStatus; encoder?: { email?: string }; createDT: string;
+}> = []
 
 export function BasicDashboard() {
   const { name } = useSession()
-  const mine = spendRequests.filter((r) => r.requester === name)
-  const fallback = mine.length > 0 ? mine : spendRequests.slice(0, 4)
+  const fallback = spendRequests.slice(0, 4)
 
-  const pending = fallback.filter((r) =>
-    r.status === 'posted' || r.status === 'under_review',
-  ).length
-  const approved = fallback.filter((r) =>
-    r.status === 'approved' || r.status === 'completed',
-  ).length
-  const declined = fallback.filter((r) => r.status === 'declined').length
+  const pending = fallback.filter((r) => r.status === 'Posted' || r.status === 'UnderReview').length
+  const approved = fallback.filter((r) => r.status === 'Approved' || r.status === 'Completed').length
+  const declined = fallback.filter((r) => r.status === 'Declined').length
 
   const stats = [
     { label: 'Pending', value: pending, icon: Clock, tint: 'bg-warning/15 text-warning-foreground' },
@@ -95,20 +97,20 @@ export function BasicDashboard() {
                     <Link to={`/expenses/requests/${r.id}`}
                       className="font-mono text-sm font-medium text-primary hover:underline"
                     >
-                      {r.ref}
+                      {r.referenceNumber}
                     </Link>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {r.category}
+                    {r.category?.name ?? '\u2014'}
                   </TableCell>
                   <TableCell className="text-right font-medium tabular-nums">
-                    {formatCurrency(r.amount, r.currency)}
+                    {formatCurrency(r.amount, r.currency?.code)}
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={r.status} />
                   </TableCell>
                   <TableCell className="pr-6 text-muted-foreground">
-                    {r.date}
+                    {r.createDT ? new Date(r.createDT).toLocaleDateString() : ''}
                   </TableCell>
                 </TableRow>
               ))}

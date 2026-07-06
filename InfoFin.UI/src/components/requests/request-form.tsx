@@ -1,8 +1,8 @@
 'use client'
 
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useState } from 'react'
-import { UploadCloud, X, ArrowLeft } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { UploadCloud, X, ArrowLeft, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -11,37 +11,105 @@ import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import {
-  spendRequests,
-  departments,
-  categoryTree,
-  vendors,
-  currencies,
-} from '@/lib/mock-data'
+  createSpendRequest,
+  getSpendRequestById,
+  getDepartments,
+  getCategories,
+  getCurrencies,
+  getVendors,
+} from '@/api/spendRequestService'
+import type {
+  Department,
+  Category,
+  Currency,
+  Vendor,
+} from '@/types/spend-request'
 
 export function RequestForm() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const editId = searchParams.get('id')
-  const existing = editId
-    ? spendRequests.find((r) => r.id === editId)
-    : undefined
 
-  const [currency, setCurrency] = useState<'USD' | 'FC'>(
-    existing?.currency ?? 'USD',
-  )
-  const [rate, setRate] = useState(
-    existing?.exchangeRate ?? currencies.find((c) => c.code === 'FC')!.rate,
-  )
-  const [files, setFiles] = useState<string[]>(
-    existing?.attachments.map((a) => a.name) ?? [],
-  )
+  const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [currencies, setCurrencies] = useState<Currency[]>([])
+  const [vendors, setVendors] = useState<Vendor[]>([])
+
+  const [departmentId, setDepartmentId] = useState('')
+  const [categoryId, setCategoryId] = useState('')
+  const [vendorId, setVendorId] = useState('')
+  const [currencyId, setCurrencyId] = useState('')
+  const [amount, setAmount] = useState('')
+  const [description, setDescription] = useState('')
+  const [files, setFiles] = useState<string[]>([])
   const [dragging, setDragging] = useState(false)
+
+  // Load lookups
+  useEffect(() => {
+    setLoading(true)
+    Promise.all([
+      getDepartments(),
+      getCategories(),
+      getCurrencies(),
+      getVendors(),
+      editId ? getSpendRequestById(Number(editId)) : null,
+    ])
+      .then(([depts, cats, curs, vends, existing]) => {
+        setDepartments(depts)
+        setCategories(cats)
+        setCurrencies(curs)
+        setVendors(vends)
+        if (existing) {
+          setDepartmentId(String(existing.departmentId))
+          setCategoryId(String(existing.categoryId))
+          setVendorId(existing.vendorId ? String(existing.vendorId) : '')
+          setCurrencyId(String(existing.currencyId))
+          setAmount(String(existing.amount))
+          setDescription(existing.description ?? '')
+        } else if (curs.length > 0) {
+          setCurrencyId(String(curs[0].id))
+        }
+      })
+      .finally(() => setLoading(false))
+  }, [editId])
+
+  const selectedCurrency = currencies.find((c) => c.id === Number(currencyId))
+  const fcRate = selectedCurrency?.exchangeRateToUSD ?? 1
 
   function onDrop(e: React.DragEvent) {
     e.preventDefault()
     setDragging(false)
     const dropped = Array.from(e.dataTransfer.files).map((f) => f.name)
     setFiles((prev) => [...prev, ...dropped])
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (submitting) return
+    setSubmitting(true)
+    try {
+      await createSpendRequest({
+        departmentId: Number(departmentId),
+        categoryId: Number(categoryId),
+        amount: Number(amount),
+        currencyId: Number(currencyId),
+        vendorId: vendorId ? Number(vendorId) : null,
+        description,
+      })
+      navigate('/expenses/requests')
+    } catch {
+      setSubmitting(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    )
   }
 
   return (
@@ -56,17 +124,14 @@ export function RequestForm() {
           <ArrowLeft className="size-4" />
         </Button>
         <h2 className="text-lg font-semibold">
-          {existing ? `Edit ${existing.ref}` : 'New Spend Request'}
+          {editId ? 'Edit Spend Request' : 'New Spend Request'}
         </h2>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <form
           className="grid grid-cols-1 gap-6 lg:col-span-2 md:grid-cols-2"
-          onSubmit={(e) => {
-            e.preventDefault()
-            navigate('/expenses/requests')
-          }}
+          onSubmit={handleSubmit}
         >
           <Card className="md:col-span-2">
             <CardHeader>
@@ -74,69 +139,40 @@ export function RequestForm() {
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <Field label="Department">
-                <Select defaultValue={existing?.department ?? ''} required>
-                  <option value="" disabled>
-                    Select department
-                  </option>
+                <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} required>
+                  <option value="" disabled>Select department</option>
                   {departments.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
+                    <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </Select>
               </Field>
 
               <Field label="Category">
-                <Select defaultValue={existing?.category ?? ''} required>
-                  <option value="" disabled>
-                    Select category
-                  </option>
-                  {categoryTree.map((group) => (
-                    <optgroup key={group.group} label={group.group}>
-                      {group.classifications.flatMap((c) =>
-                        c.items.map((item) => (
-                          <option key={item} value={item}>
-                            {c.name} › {item}
-                          </option>
-                        )),
-                      )}
-                    </optgroup>
+                <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required>
+                  <option value="" disabled>Select category</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </Select>
               </Field>
 
               <Field label="Vendor">
-                <Select defaultValue={existing?.vendor ?? ''}>
-                  <option value="" disabled>
-                    Select vendor
-                  </option>
+                <Select value={vendorId} onChange={(e) => setVendorId(e.target.value)}>
+                  <option value="">None</option>
                   {vendors.map((v) => (
-                    <option key={v} value={v}>
-                      {v}
-                    </option>
+                    <option key={v.id} value={v.id}>{v.name}</option>
                   ))}
-                  <option value="__new">+ Add new vendor…</option>
                 </Select>
               </Field>
 
               <Field label="Currency">
-                <div className="inline-flex h-10 w-full rounded-md border border-border p-0.5">
-                  {(['USD', 'FC'] as const).map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => setCurrency(c)}
-                      className={cn(
-                        'flex-1 rounded-[6px] text-sm font-medium transition-colors',
-                        currency === c
-                          ? 'bg-primary text-primary-foreground'
-                          : 'text-muted-foreground hover:text-foreground',
-                      )}
-                    >
-                      {c}
-                    </button>
+                <Select value={currencyId} onChange={(e) => setCurrencyId(e.target.value)} required>
+                  {currencies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.code} (rate: {c.exchangeRateToUSD})
+                    </option>
                   ))}
-                </div>
+                </Select>
               </Field>
 
               <Field label="Amount">
@@ -144,19 +180,19 @@ export function RequestForm() {
                   type="number"
                   min="0"
                   step="0.01"
-                  defaultValue={existing?.amount ?? ''}
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
                   placeholder="0.00"
                   required
                 />
               </Field>
 
-              {currency === 'FC' && (
-                <Field label="Exchange rate (FC per USD)">
+              {selectedCurrency && selectedCurrency.code !== 'USD' && (
+                <Field label={`Amount in USD (rate: ${fcRate})`}>
                   <Input
-                    type="number"
-                    step="0.01"
-                    value={rate}
-                    onChange={(e) => setRate(Number(e.target.value))}
+                    type="text"
+                    readOnly
+                    value={amount ? (Number(amount) / fcRate).toFixed(2) : '0.00'}
                   />
                 </Field>
               )}
@@ -170,8 +206,9 @@ export function RequestForm() {
             <CardContent className="flex flex-col gap-5">
               <Field label="Description / Justification">
                 <Textarea
-                  defaultValue={existing?.description ?? ''}
-                  placeholder="Explain the business need for this spend…"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Explain the business need for this spend\u2026"
                   className="min-h-32"
                   required
                 />
@@ -180,44 +217,25 @@ export function RequestForm() {
               <div className="flex flex-col gap-2">
                 <Label>Attachments</Label>
                 <div
-                  onDragOver={(e) => {
-                    e.preventDefault()
-                    setDragging(true)
-                  }}
+                  onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
                   onDragLeave={() => setDragging(false)}
                   onDrop={onDrop}
                   className={cn(
                     'flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-10 text-center transition-colors',
-                    dragging
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border bg-muted/40',
+                    dragging ? 'border-primary bg-primary/5' : 'border-border bg-muted/40',
                   )}
                 >
                   <UploadCloud className="size-7 text-muted-foreground" />
-                  <p className="text-sm font-medium">
-                    Drag &amp; drop files here
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    PDF, XLSX, PNG up to 10 MB
-                  </p>
+                  <p className="text-sm font-medium">Drag &amp; drop files here</p>
+                  <p className="text-xs text-muted-foreground">PDF, XLSX, PNG up to 10 MB</p>
                 </div>
                 {files.length > 0 && (
                   <ul className="flex flex-col gap-2">
                     {files.map((name, i) => (
-                      <li
-                        key={`${name}-${i}`}
-                        className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
-                      >
+                      <li key={`${name}-${i}`} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
                         <span className="flex-1 truncate">{name}</span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Remove"
-                          onClick={() =>
-                            setFiles((prev) => prev.filter((_, j) => j !== i))
-                          }
-                        >
+                        <Button type="button" variant="ghost" size="icon-sm" aria-label="Remove"
+                          onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}>
                           <X className="size-4" />
                         </Button>
                       </li>
@@ -229,43 +247,32 @@ export function RequestForm() {
           </Card>
 
           <div className="flex justify-end gap-3 md:col-span-2">
-            <Button variant="secondary" type="button">
-              Save as Draft
+            <Button variant="secondary" type="button" onClick={() => navigate('/expenses/requests')}>
+              Cancel
             </Button>
-            <Button type="submit">Submit for Approval</Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? 'Submitting\u2026' : 'Submit for Approval'}
+            </Button>
           </div>
         </form>
 
         <Card className="h-fit">
-          <CardHeader>
-            <CardTitle>Approval Flow</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>Approval Flow</CardTitle></CardHeader>
           <CardContent>
             <ol className="flex flex-col gap-4">
-              {['Posted', 'Under Review', 'Approved', 'Completed'].map(
-                (step, i) => (
-                  <li key={step} className="flex items-center gap-3">
-                    <span
-                      className={cn(
-                        'flex size-7 items-center justify-center rounded-full text-xs font-semibold',
-                        i === 0
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted text-muted-foreground',
-                      )}
-                    >
-                      {i + 1}
-                    </span>
-                    <span
-                      className={cn(
-                        'text-sm',
-                        i === 0 ? 'font-medium' : 'text-muted-foreground',
-                      )}
-                    >
-                      {step}
-                    </span>
-                  </li>
-                ),
-              )}
+              {['Posted', 'Under Review', 'Approved', 'Completed'].map((step, i) => (
+                <li key={step} className="flex items-center gap-3">
+                  <span className={cn(
+                    'flex size-7 items-center justify-center rounded-full text-xs font-semibold',
+                    i === 0 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                  )}>
+                    {i + 1}
+                  </span>
+                  <span className={cn('text-sm', i === 0 ? 'font-medium' : 'text-muted-foreground')}>
+                    {step}
+                  </span>
+                </li>
+              ))}
             </ol>
             <p className="mt-4 text-xs text-muted-foreground">
               Requests route through each approver in sequence once submitted.
@@ -277,13 +284,7 @@ export function RequestForm() {
   )
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-2">
       <Label>{label}</Label>

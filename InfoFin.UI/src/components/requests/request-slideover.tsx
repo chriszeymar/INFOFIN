@@ -5,7 +5,7 @@ import { X, Paperclip, ArrowRight } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { StatusBadge } from '@/components/requests/status-badge'
 import { ApprovalTimeline } from '@/components/requests/approval-timeline'
-import { formatCurrency, type SpendRequest } from '@/lib/mock-data'
+import { formatCurrency, formatDate, type SpendRequest } from '@/types/spend-request'
 
 export function RequestSlideover({
   request,
@@ -27,7 +27,7 @@ export function RequestSlideover({
         <div className="flex items-center justify-between border-b border-border p-5">
           <div className="flex flex-col gap-1">
             <span className="font-mono text-sm font-semibold">
-              {request.ref}
+              {request.referenceNumber}
             </span>
             <StatusBadge status={request.status} />
           </div>
@@ -40,20 +40,20 @@ export function RequestSlideover({
           <dl className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <dt className="text-xs text-muted-foreground">Department</dt>
-              <dd className="font-medium">{request.department}</dd>
+              <dd className="font-medium">{request.department?.name ?? `#${request.departmentId}`}</dd>
             </div>
             <div>
               <dt className="text-xs text-muted-foreground">Category</dt>
-              <dd className="font-medium">{request.category}</dd>
+              <dd className="font-medium">{request.category?.name ?? `#${request.categoryId}`}</dd>
             </div>
             <div>
               <dt className="text-xs text-muted-foreground">Vendor</dt>
-              <dd className="font-medium">{request.vendor}</dd>
+              <dd className="font-medium">{request.vendor?.name ?? '\u2014'}</dd>
             </div>
             <div>
               <dt className="text-xs text-muted-foreground">Amount</dt>
               <dd className="font-semibold">
-                {formatCurrency(request.amount, request.currency)}
+                {formatCurrency(request.amount, request.currency?.code)}
               </dd>
             </div>
           </dl>
@@ -63,32 +63,48 @@ export function RequestSlideover({
             <p className="text-sm leading-relaxed">{request.description}</p>
           </div>
 
-          {request.attachments.length > 0 && (
+          {request.attachments?.length > 0 ? (
             <div>
               <p className="mb-2 text-xs text-muted-foreground">Attachments</p>
               <ul className="flex flex-col gap-2">
-                {request.attachments.map((a) => (
+                {request.attachments?.map((a) => (
                   <li
-                    key={a.name}
+                    key={a.fileName}
                     className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
                   >
                     <Paperclip className="size-4 text-muted-foreground" />
-                    <span className="flex-1 truncate">{a.name}</span>
+                    <span className="flex-1 truncate">{a.fileName}</span>
                     <span className="text-xs text-muted-foreground">
-                      {a.size}
+                      {formatDate(a.createDT)}
                     </span>
                   </li>
                 ))}
               </ul>
             </div>
+          ) : (
+            <div>
+              <p className="mb-2 text-xs text-muted-foreground">Attachments</p>
+              <p className="text-sm text-muted-foreground">None</p>
+            </div>
           )}
 
+          {request.timeline ? (
           <div>
             <p className="mb-3 text-xs text-muted-foreground">
               Approval Timeline
             </p>
             <ApprovalTimeline timeline={request.timeline} />
           </div>
+          ) : (
+          <div>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Approval Timeline
+            </p>
+            <p className="text-sm text-muted-foreground">
+              View full details for timeline and attachments.
+            </p>
+          </div>
+          )}
 
           <Link to={`/expenses/requests/${request.id}`}
             className={buttonVariants({ className: 'w-full' })}

@@ -3,7 +3,7 @@
 -- Description    : Insert Update SpendRequest
 -- ===================================================================
 
-CREATE   PROCEDURE [dbo].[zgen_SpendRequest_InsUpd]
+CREATE OR ALTER PROCEDURE [dbo].[zgen_SpendRequest_InsUpd]
   (@ReferenceNumber NVARCHAR(50),@DepartmentId INT,@CategoryId INT,@EncoderId INT,@Amount DECIMAL(18, 2),@CurrencyId INT,@LockedExchangeRate DECIMAL(18, 6),@Description NVARCHAR(MAX),@Status NVARCHAR(50),@Id INT=NULL,@AssignedToUserId INT=NULL,@VendorId INT=NULL,@RetMsg NVARCHAR(MAX) OUTPUT)
 AS
 BEGIN
@@ -50,3 +50,5 @@ BEGIN
     RETURN 1
   END CATCH
 END
+
+

@@ -3,8 +3,8 @@
 -- Description    : Soft Delete SpendRequest
 -- ===================================================================
 
-CREATE   PROCEDURE [dbo].[zgen_SpendRequest_DelSft]
-  (@Id int, @RetMsg NVARCHAR(MAX) OUTPUT)
+CREATE OR ALTER PROCEDURE [dbo].[zgen_SpendRequest_DelSft]
+  (@Id int, @IsActive bit=NULL, @RetMsg NVARCHAR(MAX) OUTPUT)
 AS
 BEGIN
   DECLARE @InitialTransCount INT = @@TRANCOUNT;
@@ -13,7 +13,7 @@ BEGIN
   BEGIN TRY
     IF @InitialTransCount = 0 BEGIN TRANSACTION @TranName
 
-    UPDATE [dbo].[SpendRequest] SET IsActive = 0 WHERE [Id]=@Id;
+    UPDATE [dbo].[SpendRequest] SET [UpdateDT]=GETDATE() WHERE [Id]=@Id;
 
     IF @@ERROR <> 0 BEGIN GOTO errorMsg_section END
 
@@ -36,3 +36,4 @@ BEGIN
     RETURN 1
   END CATCH
 END
+
