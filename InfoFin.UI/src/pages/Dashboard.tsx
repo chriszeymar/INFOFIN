@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { Settings2, X, Eye, EyeOff } from 'lucide-react'
 import { Select } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
@@ -13,9 +13,6 @@ import {
   YearlyBudgetPerformance,
   MonthlyBudgetPerformance,
   CostsAnalysis,
-  CostsBreakdown,
-  ExecutionLevel,
-  CostsPerType,
   CostAnalysisByDept,
 } from '@/components/dashboard/finance-charts'
 import { useSession } from '@/auth/AuthContext'
@@ -28,9 +25,6 @@ type WidgetId =
   | 'yearly-budget'
   | 'monthly-budget'
   | 'costs-analysis'
-  | 'costs-breakdown'
-  | 'execution-level'
-  | 'costs-per-type'
   | 'cost-by-dept'
 
 type Widget = {
@@ -46,31 +40,43 @@ const WIDGETS: Widget[] = [
   { id: 'yearly-budget',    label: 'Yearly Budget Performance',  description: 'Forecast vs to-date vs execution for FY' },
   { id: 'monthly-budget',   label: 'Monthly Budget Performance', description: 'Current month budget snapshot' },
   { id: 'costs-analysis',   label: 'Costs Analysis',             description: 'To-date vs execution across cost groups' },
-  { id: 'costs-breakdown',  label: 'Costs Breakdown',            description: 'Fixed and variable costs comparison' },
-  { id: 'execution-level',  label: 'Execution Level',            description: 'Execution % per budget line' },
-  { id: 'costs-per-type',   label: 'Costs per Type',             description: 'Share of executed cost by type' },
   { id: 'cost-by-dept',     label: 'Cost Analysis by Dept',      description: 'Execution per department' },
 ]
 
 const DEFAULT_VISIBLE: WidgetId[] = ['kpi-cards', 'execution-forecast', 'overspent-table']
+const STORAGE_KEY = 'dashboard-visible-widgets'
+
+function loadVisible(): Set<WidgetId> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (raw) {
+      const ids: unknown = JSON.parse(raw)
+      if (Array.isArray(ids) && ids.every((id): id is WidgetId => typeof id === 'string')) {
+        return new Set(ids as WidgetId[])
+      }
+    }
+  } catch { /* ignore corrupt data */ }
+  return new Set(DEFAULT_VISIBLE)
+}
 
 export default function DashboardPage() {
   const { isElevated } = useSession()
   const [view, setView] = useState<'BU' | 'SU'>('BU')
   const [panelOpen, setPanelOpen] = useState(false)
-  const [visible, setVisible] = useState<Set<WidgetId>>(new Set(DEFAULT_VISIBLE))
+  const [visible, setVisible] = useState<Set<WidgetId>>(loadVisible)
 
   if (!isElevated) {
     return <BasicDashboard />
   }
 
-  function toggle(id: WidgetId) {
+  const toggle = useCallback((id: WidgetId) => {
     setVisible((prev) => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]))
       return next
     })
-  }
+  }, [])
 
   const visibleWidgets = WIDGETS.filter((w) => visible.has(w.id))
 
@@ -197,35 +203,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Costs analysis + breakdown row */}
-      {(visible.has('costs-analysis') || visible.has('costs-breakdown')) && (
-        <div
-          className={cn(
-            'grid grid-cols-1 gap-4',
-            visible.has('costs-analysis') && visible.has('costs-breakdown')
-              ? 'lg:grid-cols-2'
-              : '',
-          )}
-        >
-          {visible.has('costs-analysis') && <CostsAnalysis />}
-          {visible.has('costs-breakdown') && <CostsBreakdown />}
-        </div>
-      )}
-
-      {/* Execution level + costs per type row */}
-      {(visible.has('execution-level') || visible.has('costs-per-type')) && (
-        <div
-          className={cn(
-            'grid grid-cols-1 gap-4',
-            visible.has('execution-level') && visible.has('costs-per-type')
-              ? 'lg:grid-cols-2'
-              : '',
-          )}
-        >
-          {visible.has('execution-level') && <ExecutionLevel />}
-          {visible.has('costs-per-type') && <CostsPerType />}
-        </div>
-      )}
+      {/* Costs analysis — full width */}
+      {visible.has('costs-analysis') && <CostsAnalysis />}
 
       {/* Cost by dept — full width */}
       {visible.has('cost-by-dept') && <CostAnalysisByDept />}

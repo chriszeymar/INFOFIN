@@ -1,11 +1,13 @@
 'use client'
 
-import React, { useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { ChevronDown, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   type Department,
   type BudgetSection,
+  type BudgetLineItem,
+  type SectionType,
   type ClassificationType,
   CLASSIFICATION_LABELS,
   getSectionTotals,
@@ -14,15 +16,22 @@ import {
   getDeptSummary,
 } from '@/lib/budget-data'
 
+// ─── Edit API ─────────────────────────────────────────────────────────────────
+
+export type EditApi = {
+  onValue: (deptId: string, itemId: string, field: 'forecast' | 'execution', value: number) => void
+  onRename: (itemId: string, label: string) => void
+  onDelete: (itemId: string) => void
+  onAdd: (section: SectionType, classification: ClassificationType | null) => void
+}
+
 // ─── Formatting ───────────────────────────────────────────────────────────────
 
 function fmt(n: number) {
   if (n === 0) return <span className="text-muted-foreground/40">—</span>
   const abs = Math.abs(n)
   const str =
-    abs >= 1_000_000
-      ? `$${(abs / 1_000_000).toFixed(2)}M`
-      : `$${abs.toLocaleString()}`
+    abs >= 1_000_000 ? `$${(abs / 1_000_000).toFixed(2)}M` : `$${abs.toLocaleString()}`
   return <span>{n < 0 ? `-${str}` : str}</span>
 }
 
@@ -30,12 +39,40 @@ function Pct({ forecast, execution }: { forecast: number; execution: number }) {
   const p = execPct(forecast, execution)
   if (p === null) return <span className="text-muted-foreground/40">—</span>
   const cls =
-    p > 120
-      ? 'text-destructive font-semibold'
-      : p > 100
-      ? 'text-warning font-medium'
-      : 'text-success'
+    p > 120 ? 'text-destructive font-semibold' : p > 100 ? 'text-warning font-medium' : 'text-success'
   return <span className={cls}>{p}%</span>
+}
+
+// ─── Editable numeric cell ──────────────────────────────────────────────────────
+
+function NumInput({
+  value,
+  onCommit,
+}: {
+  value: number
+  onCommit: (n: number) => void
+}) {
+  const [raw, setRaw] = useState(value ? String(value) : '')
+
+  useEffect(() => {
+    setRaw(value ? String(value) : '')
+  }, [value])
+
+  return (
+    <input
+      type="number"
+      inputMode="decimal"
+      value={raw}
+      onChange={(e) => {
+        const v = e.target.value
+        setRaw(v)
+        onCommit(v === '' || v === '-' ? 0 : Number(v))
+      }}
+      onFocus={(e) => e.target.select()}
+      className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-right text-xs tabular-nums outline-none transition-colors focus:border-primary focus:bg-background hover:border-border"
+      placeholder="0"
+    />
+  )
 }
 
 // ─── Cell classes ─────────────────────────────────────────────────────────────
@@ -44,16 +81,31 @@ const th =
   'border-b border-r border-border px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground last:border-r-0'
 const td =
   'border-b border-r border-border px-3 py-1.5 text-right text-xs tabular-nums last:border-r-0'
+const tdEdit = 'border-b border-r border-border px-1 py-0.5 last:border-r-0'
 const tdLabel =
   'border-b border-r border-border px-3 py-1.5 text-left text-xs sticky left-0 bg-card z-10'
 const subtotalCls =
-  'border-b border-r border-border px-3 py-1.5 text-right text-xs font-semibold tabular-nums bg-muted/40 last:border-r-0'
+  'border-b border-r border-border px-3 py-1.5 text-right text-sm font-semibold tabular-nums bg-muted/40 last:border-r-0'
 const subtotalLabelCls =
-  'border-b border-r border-border px-3 py-1.5 text-left text-xs font-semibold bg-muted/40 sticky left-0 z-10'
+  'border-b border-r border-border px-3 py-1.5 text-left text-sm font-semibold bg-muted/40 sticky left-0 z-10'
 const grandTotalCls =
   'border-b border-r border-border px-3 py-2 text-right text-xs font-bold tabular-nums bg-primary/8 text-primary last:border-r-0'
 const grandTotalLabelCls =
   'border-b border-r border-border px-3 py-2 text-left text-xs font-bold bg-primary/8 text-primary uppercase sticky left-0 z-10'
+
+// ─── Item lookup by id within a department ──────────────────────────────────────
+
+function deptItem(
+  dept: Department,
+  sectionType: SectionType,
+  cls: ClassificationType | null,
+  id: string,
+): BudgetLineItem | undefined {
+  const s = dept.sections.find((x) => x.type === sectionType)
+  if (!s) return undefined
+  if (cls) return s.classifications?.find((c) => c.type === cls)?.items.find((i) => i.id === id)
+  return s.items?.find((i) => i.id === id)
+}
 
 // ─── Table header rows ────────────────────────────────────────────────────────
 
@@ -93,7 +145,7 @@ function DeptSubHeaders({ departments }: { departments: Department[] }) {
   )
 }
 
-// ─── Section header row (clickable to collapse) ───────────────────────────────
+// ─── Section / classification header rows ──────────────────────────────────────
 
 function SectionHeaderRow({
   label,
@@ -115,21 +167,14 @@ function SectionHeaderRow({
       >
         <div className="flex items-center gap-2">
           <ChevronDown
-            className={cn(
-              'size-3.5 text-secondary-foreground/60 transition-transform duration-200',
-              !open && '-rotate-90',
-            )}
+            className={cn('size-3.5 text-secondary-foreground/60 transition-transform duration-200', !open && '-rotate-90')}
           />
-          <span className="text-xs font-bold uppercase tracking-wide text-secondary-foreground">
-            {label}
-          </span>
+          <span className="text-xs font-bold uppercase tracking-wide text-secondary-foreground">{label}</span>
         </div>
       </td>
     </tr>
   )
 }
-
-// ─── Classification header row (also foldable) ────────────────────────────────
 
 function ClassHeaderRow({
   label,
@@ -151,17 +196,108 @@ function ClassHeaderRow({
       >
         <div className="flex items-center gap-2 pl-3">
           <ChevronDown
-            className={cn(
-              'size-3 text-accent-foreground/50 transition-transform duration-200',
-              !open && '-rotate-90',
-            )}
+            className={cn('size-3 text-accent-foreground/50 transition-transform duration-200', !open && '-rotate-90')}
           />
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-accent-foreground">
-            {label}
-          </span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-accent-foreground">{label}</span>
         </div>
       </td>
     </tr>
+  )
+}
+
+// ─── Editable label cell ────────────────────────────────────────────────────────
+
+function LabelCell({
+  item,
+  indentClass,
+  edit,
+}: {
+  item: BudgetLineItem
+  indentClass: string
+  edit?: EditApi
+}) {
+  if (!edit) return <td className={cn(tdLabel, indentClass)}>{item.label}</td>
+  return (
+    <td className={cn(tdLabel, 'py-1', indentClass)}>
+      <div className="flex items-center gap-1">
+        <input
+          value={item.label}
+          onChange={(e) => edit.onRename(item.id, e.target.value)}
+          className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 py-0.5 text-xs outline-none transition-colors focus:border-primary focus:bg-background hover:border-border"
+        />
+        <button
+          type="button"
+          onClick={() => edit.onDelete(item.id)}
+          aria-label={`Delete ${item.label}`}
+          className="shrink-0 rounded p-1 text-muted-foreground/60 transition-colors hover:bg-destructive/10 hover:text-destructive"
+        >
+          <Trash2 className="size-3.5" />
+        </button>
+      </div>
+    </td>
+  )
+}
+
+// ─── Add-line row ───────────────────────────────────────────────────────────────
+
+function AddLineRow({
+  colSpan,
+  indentClass,
+  onAdd,
+}: {
+  colSpan: number
+  indentClass: string
+  onAdd: () => void
+}) {
+  return (
+    <tr>
+      <td colSpan={colSpan} className="border-b border-border bg-card px-3 py-1">
+        <button
+          type="button"
+          onClick={onAdd}
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-medium text-primary transition-colors hover:bg-primary/10',
+            indentClass,
+          )}
+        >
+          <Plus className="size-3.5" />
+          Add line item
+        </button>
+      </td>
+    </tr>
+  )
+}
+
+// ─── Value cells for one department / item ──────────────────────────────────────
+
+function ValueCells({
+  dept,
+  item,
+  edit,
+}: {
+  dept: Department
+  item: BudgetLineItem | undefined
+  edit?: EditApi
+}) {
+  const f = item?.forecast ?? 0
+  const e = item?.execution ?? 0
+  if (edit && item) {
+    return (
+      <>
+        <td key={`${dept.id}-f`} className={tdEdit}>
+          <NumInput value={f} onCommit={(n) => edit.onValue(dept.id, item.id, 'forecast', n)} />
+        </td>
+        <td key={`${dept.id}-e`} className={cn(td, 'text-muted-foreground/60')}>{fmt(e)}</td>
+        <td key={`${dept.id}-p`} className={td}><Pct forecast={f} execution={e} /></td>
+      </>
+    )
+  }
+  return (
+    <>
+      <td key={`${dept.id}-f`} className={td}>{fmt(f)}</td>
+      <td key={`${dept.id}-e`} className={td}>{fmt(e)}</td>
+      <td key={`${dept.id}-p`} className={td}><Pct forecast={f} execution={e} /></td>
+    </>
   )
 }
 
@@ -171,50 +307,36 @@ function FlatSection({
   label,
   departments,
   sectionType,
+  edit,
 }: {
   label: string
   departments: Department[]
   sectionType: 'REVENUES' | 'COS'
+  edit?: EditApi
 }) {
   const [open, setOpen] = useState(false)
   const colSpan = 1 + departments.length * 3
-
-  const getDeptSection = (dept: Department) =>
-    dept.sections.find((s) => s.type === sectionType)
-
-  const refItems = getDeptSection(departments[0])?.items ?? []
+  const refItems = departments[0]?.sections.find((s) => s.type === sectionType)?.items ?? []
 
   return (
     <>
-      <SectionHeaderRow
-        label={label}
-        colSpan={colSpan}
-        open={open}
-        onToggle={() => setOpen((v) => !v)}
-      />
+      <SectionHeaderRow label={label} colSpan={colSpan} open={open} onToggle={() => setOpen((v) => !v)} />
       {open &&
-        refItems.map((refItem, idx) => (
-          <tr key={idx} className="hover:bg-muted/30 transition-colors">
-            <td className={cn(tdLabel, 'pl-6')}>{refItem.label}</td>
-            {departments.map((dept) => {
-              const item = getDeptSection(dept)?.items?.[idx]
-              const f = item?.forecast ?? 0
-              const e = item?.execution ?? 0
-              return (
-                <React.Fragment key={dept.id}>
-                  <td key={`${dept.id}-f`} className={td}>{fmt(f)}</td>
-                  <td key={`${dept.id}-e`} className={td}>{fmt(e)}</td>
-                  <td key={`${dept.id}-p`} className={td}><Pct forecast={f} execution={e} /></td>
-                </React.Fragment>
-              )
-            })}
+        refItems.map((refItem) => (
+          <tr key={refItem.id} className="hover:bg-muted/30 transition-colors">
+            <LabelCell item={refItem} indentClass="pl-6" edit={edit} />
+            {departments.map((dept) => (
+              <ValueCells key={dept.id} dept={dept} item={deptItem(dept, sectionType, null, refItem.id)} edit={edit} />
+            ))}
           </tr>
         ))}
-      {/* Section total always visible */}
+      {open && edit && (
+        <AddLineRow colSpan={colSpan} indentClass="ml-3" onAdd={() => edit.onAdd(sectionType, null)} />
+      )}
       <tr className="bg-muted/20">
-        <td className={cn(subtotalLabelCls, 'text-[11px]')}>Total {label}</td>
+        <td className={subtotalLabelCls}>Total {label}</td>
         {departments.map((dept) => {
-          const s = getDeptSection(dept)
+          const s = dept.sections.find((x) => x.type === sectionType)
           const tot = s ? sumItems(s.items ?? []) : { forecast: 0, execution: 0 }
           return (
             <React.Fragment key={dept.id}>
@@ -235,10 +357,12 @@ function ClassifiedSection({
   label,
   departments,
   sectionType,
+  edit,
 }: {
   label: string
   departments: Department[]
   sectionType: 'FIXED_COSTS' | 'VARIABLE_COSTS'
+  edit?: EditApi
 }) {
   const [sectionOpen, setSectionOpen] = useState(false)
   const [classOpen, setClassOpen] = useState<Record<string, boolean>>({
@@ -253,12 +377,7 @@ function ClassifiedSection({
 
   return (
     <>
-      <SectionHeaderRow
-        label={label}
-        colSpan={colSpan}
-        open={sectionOpen}
-        onToggle={() => setSectionOpen((v) => !v)}
-      />
+      <SectionHeaderRow label={label} colSpan={colSpan} open={sectionOpen} onToggle={() => setSectionOpen((v) => !v)} />
       {sectionOpen &&
         classifications.map((cls) => {
           const refItems =
@@ -266,44 +385,30 @@ function ClassifiedSection({
           const isClsOpen = classOpen[cls]
 
           return (
-            <React.Fragment key={cls}>
+            <>
               <ClassHeaderRow
                 key={`hdr-${cls}`}
                 label={CLASSIFICATION_LABELS[cls]}
                 colSpan={colSpan}
                 open={isClsOpen}
-                onToggle={() =>
-                  setClassOpen((p) => ({ ...p, [cls]: !p[cls] }))
-                }
+                onToggle={() => setClassOpen((p) => ({ ...p, [cls]: !p[cls] }))}
               />
               {isClsOpen &&
-                refItems.map((refItem, idx) => (
-                  <tr key={`${cls}-${idx}`} className="hover:bg-muted/30 transition-colors">
-                    <td className={cn(tdLabel, 'pl-8')}>{refItem.label}</td>
-                    {departments.map((dept) => {
-                      const item = getSection(dept)
-                        ?.classifications?.find((c) => c.type === cls)
-                        ?.items?.[idx]
-                      const f = item?.forecast ?? 0
-                      const e = item?.execution ?? 0
-                      return (
-                        <React.Fragment key={dept.id}>
-                          <td key={`${dept.id}-f`} className={td}>{fmt(f)}</td>
-                          <td key={`${dept.id}-e`} className={td}>{fmt(e)}</td>
-                          <td key={`${dept.id}-p`} className={td}><Pct forecast={f} execution={e} /></td>
-                        </React.Fragment>
-                      )
-                    })}
+                refItems.map((refItem) => (
+                  <tr key={refItem.id} className="hover:bg-muted/30 transition-colors">
+                    <LabelCell item={refItem} indentClass="pl-8" edit={edit} />
+                    {departments.map((dept) => (
+                      <ValueCells key={dept.id} dept={dept} item={deptItem(dept, sectionType, cls, refItem.id)} edit={edit} />
+                    ))}
                   </tr>
                 ))}
-              {/* Classification subtotal — always visible */}
+              {isClsOpen && edit && (
+                <AddLineRow colSpan={colSpan} indentClass="ml-5" onAdd={() => edit.onAdd(sectionType, cls)} />
+              )}
               <tr key={`tot-${cls}`} className="bg-muted/10">
-                <td className={cn(subtotalLabelCls, 'pl-6 text-[11px]')}>
-                  {CLASSIFICATION_LABELS[cls]} Total
-                </td>
+                <td className={cn(subtotalLabelCls, 'pl-6')}>{CLASSIFICATION_LABELS[cls]} Total</td>
                 {departments.map((dept) => {
-                  const items =
-                    getSection(dept)?.classifications?.find((c) => c.type === cls)?.items ?? []
+                  const items = getSection(dept)?.classifications?.find((c) => c.type === cls)?.items ?? []
                   const tot = sumItems(items)
                   return (
                     <React.Fragment key={dept.id}>
@@ -314,10 +419,9 @@ function ClassifiedSection({
                   )
                 })}
               </tr>
-            </React.Fragment>
+            </>
           )
         })}
-      {/* Section grand total */}
       <tr>
         <td className={grandTotalLabelCls}>Total {label}</td>
         {departments.map((dept) => {
@@ -375,7 +479,7 @@ function SummaryRow({
 
 // ─── BU P&L Grid ─────────────────────────────────────────────────────────────
 
-export function BUGrid({ departments }: { departments: Department[] }) {
+export function BUGrid({ departments, edit }: { departments: Department[]; edit?: EditApi }) {
   const summaries = departments.map((d) => getDeptSummary(d, 'BU'))
 
   return (
@@ -386,15 +490,15 @@ export function BUGrid({ departments }: { departments: Department[] }) {
           <DeptSubHeaders departments={departments} />
         </thead>
         <tbody>
-          <FlatSection label="Revenues" departments={departments} sectionType="REVENUES" />
-          <FlatSection label="Cost of Sales" departments={departments} sectionType="COS" />
+          <FlatSection label="Revenues" departments={departments} sectionType="REVENUES" edit={edit} />
+          <FlatSection label="Cost of Sales" departments={departments} sectionType="COS" edit={edit} />
           <SummaryRow
             label="Gross Margin"
             departments={departments}
             getValue={(d) => summaries[departments.indexOf(d)].grossMargin}
           />
-          <ClassifiedSection label="Fixed Costs" departments={departments} sectionType="FIXED_COSTS" />
-          <ClassifiedSection label="Variable Costs" departments={departments} sectionType="VARIABLE_COSTS" />
+          <ClassifiedSection label="Fixed Costs" departments={departments} sectionType="FIXED_COSTS" edit={edit} />
+          <ClassifiedSection label="Variable Costs" departments={departments} sectionType="VARIABLE_COSTS" edit={edit} />
           <SummaryRow
             label="Total OPEX"
             departments={departments}
@@ -414,7 +518,7 @@ export function BUGrid({ departments }: { departments: Department[] }) {
 
 // ─── SU OPEX Grid ─────────────────────────────────────────────────────────────
 
-export function SUGrid({ departments }: { departments: Department[] }) {
+export function SUGrid({ departments, edit }: { departments: Department[]; edit?: EditApi }) {
   const summaries = departments.map((d) => getDeptSummary(d, 'SU'))
 
   return (
@@ -425,8 +529,8 @@ export function SUGrid({ departments }: { departments: Department[] }) {
           <DeptSubHeaders departments={departments} />
         </thead>
         <tbody>
-          <ClassifiedSection label="Fixed Costs" departments={departments} sectionType="FIXED_COSTS" />
-          <ClassifiedSection label="Variable Costs" departments={departments} sectionType="VARIABLE_COSTS" />
+          <ClassifiedSection label="Fixed Costs" departments={departments} sectionType="FIXED_COSTS" edit={edit} />
+          <ClassifiedSection label="Variable Costs" departments={departments} sectionType="VARIABLE_COSTS" edit={edit} />
           <SummaryRow
             label="Total OPEX"
             departments={departments}

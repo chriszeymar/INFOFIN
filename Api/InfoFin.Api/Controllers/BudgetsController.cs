@@ -195,6 +195,112 @@ public class BudgetsController : ControllerBase
         return Ok(groups);
     }
 
+    // ─── Save Draft (Phase — persist edits) ──────────────────────────
+
+    [HttpPut("draft")]
+    public async Task<IActionResult> SaveDraft([FromBody] SaveDraftRequest request)
+    {
+        await using var conn = new SqlConnection(_connStr);
+        await conn.OpenAsync();
+        using var tx = conn.BeginTransaction();
+
+        try
+        {
+            string FgNameForSection(string type) => type switch
+            {
+                "REVENUES" => "Revenus",
+                "COS" => "COS",
+                "FIXED_COSTS" => "Fixed Costs",
+                _ => "Variables Costs"
+            };
+
+            // 1. Handle deletions
+            foreach (var delId in request.DeletedIds ?? new())
+            {
+                if (TryParseDeptCat(delId, out int dId, out int cId))
+                {
+                    await conn.ExecuteAsync(
+                        "UPDATE Budget SET IsActive = 0 WHERE DepartmentId = @D AND CategoryId = @C AND Year = @Y",
+                        new { D = dId, C = cId, Y = request.Year }, tx);
+                }
+            }
+
+            // 2. Upsert items
+            foreach (var dept in request.Departments ?? new())
+            {
+                if (!int.TryParse(dept.Id, out int deptId)) continue;
+                var allItems = FlattenItems(dept.Sections ?? new());
+
+                foreach (var (sectionType, item) in allItems)
+                {
+                    string fgName = FgNameForSection(sectionType);
+                    int catId;
+
+                    if (item.Id.StartsWith("new-"))
+                    {
+                        var fgId = await conn.QuerySingleAsync<int>(
+                            "SELECT Id FROM FinancialGroup WHERE Name = @N", new { N = fgName }, tx);
+                        catId = await conn.QuerySingleAsync<int>(
+                            @"INSERT INTO Category (Name, FinancialGroupId) VALUES (@N, @F); SELECT SCOPE_IDENTITY()",
+                            new { N = item.Label, F = fgId }, tx);
+                    }
+                    else if (!TryParseDeptCat(item.Id, out _, out catId))
+                    {
+                        continue;
+                    }
+
+                    await conn.ExecuteAsync(
+                        "UPDATE Category SET Name = @N WHERE Id = @C",
+                        new { N = item.Label, C = catId }, tx);
+
+                    await conn.ExecuteAsync(
+                        @"MERGE Budget AS t
+                          USING (SELECT @D AS DepartmentId, @C AS CategoryId, @Y AS Year) AS s
+                          ON t.DepartmentId = s.DepartmentId AND t.CategoryId = s.CategoryId AND t.Year = s.Year
+                          WHEN MATCHED THEN UPDATE SET ForecastAmount = @F, IsActive = 1, UpdateDT = GETDATE()
+                          WHEN NOT MATCHED THEN INSERT (DepartmentId, CategoryId, Year, ForecastAmount, CurrencyId, IsActive) VALUES (@D, @C, @Y, @F, 1, 1);",
+                        new { D = deptId, C = catId, Y = request.Year, F = item.Forecast }, tx);
+                }
+            }
+
+            tx.Commit();
+            return Ok(new { success = true });
+        }
+        catch
+        {
+            tx.Rollback();
+            throw;
+        }
+    }
+
+    private static List<(string SectionType, ItemOut Item)> FlattenItems(List<SectionOut> sections)
+    {
+        var result = new List<(string, ItemOut)>();
+        foreach (var sec in sections)
+        {
+            if (sec.Items != null)
+                foreach (var i in sec.Items) result.Add((sec.Type, i));
+            if (sec.Classifications != null)
+                foreach (var cls in sec.Classifications)
+                    foreach (var i in cls.Items) result.Add((sec.Type, i));
+        }
+        return result;
+    }
+
+    private static bool TryParseDeptCat(string id, out int deptId, out int catId)
+    {
+        deptId = catId = 0;
+        var parts = id.Split('-');
+        return parts.Length == 2 && int.TryParse(parts[0], out deptId) && int.TryParse(parts[1], out catId);
+    }
+
+    public sealed class SaveDraftRequest
+    {
+        public int Year { get; set; }
+        public List<DeptOut> Departments { get; set; } = new();
+        public List<string> DeletedIds { get; set; } = new();
+    }
+
     private static List<SectionOut> BuildSections(int deptId, List<CellDto> rows,
         Dictionary<(int, int), decimal> targets,
         Func<string?, string, string> mapSection, Func<int?, string> mapCls)

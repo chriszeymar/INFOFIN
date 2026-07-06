@@ -71,7 +71,7 @@ export default function ExpenseManagement() {
                     className={cn(
                       'flex size-10 items-center justify-center rounded-lg',
                       isActive
-                        ? 'bg-primary/10 text-primary'
+                        ? 'bg-primary text-primary-foreground'
                         : 'bg-muted text-muted-foreground',
                     )}
                   >
@@ -88,7 +88,7 @@ export default function ExpenseManagement() {
               </CardHeader>
               {isActive && (
                 <CardContent className="pt-0">
-                  <span className="inline-flex items-center gap-1 text-xs font-medium text-primary group-hover:underline">
+                  <span className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors group-hover:bg-primary/90">
                     Open <ArrowRight className="size-3" />
                   </span>
                 </CardContent>

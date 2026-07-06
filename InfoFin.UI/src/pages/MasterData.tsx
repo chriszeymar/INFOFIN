@@ -5,6 +5,7 @@ import {
   Plus,
   Pencil,
   Trash2,
+  ChevronLeft,
   ChevronRight,
   ShieldAlert,
   FolderOpen,
@@ -63,13 +64,13 @@ const CARDS: {
   color: string
   bg: string
 }[] = [
-  { id: 'Categories', label: 'Categories', icon: FolderOpen, description: 'Expense types and cost accounts', count: 0, color: 'text-blue-600', bg: 'bg-blue-50' },
-  { id: 'Departments', label: 'Departments', icon: Building2, description: 'Business units and organisational groups', count: 0, color: 'text-violet-600', bg: 'bg-violet-50' },
-  { id: 'Classifications', label: 'Classifications', icon: Tags, description: 'Cost groupings: Admin, Tech, Marketing', count: 0, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-  { id: 'FinancialGroups', label: 'Financial Groups', icon: Layers, description: 'P&L structure: Revenue, COS, OPEX', count: 0, color: 'text-amber-600', bg: 'bg-amber-50' },
-  { id: 'DepartmentGroups', label: 'Dept Groups', icon: FolderTree, description: 'BU/SU groupings for departments', count: 0, color: 'text-rose-600', bg: 'bg-rose-50' },
-  { id: 'Currencies', label: 'Currencies', icon: DollarSign, description: 'Supported currencies and exchange rates', count: 0, color: 'text-purple-600', bg: 'bg-purple-50' },
-  { id: 'OdooSync', label: 'Odoo Sync', icon: RefreshCw, description: 'Sync actuals from Odoo ERP and manage integration', count: 0, color: 'text-cyan-600', bg: 'bg-cyan-50' },
+  { id: 'Categories', label: 'Categories', icon: FolderOpen, description: 'Expense types and cost accounts', count: 0, color: 'bg-blue-600', bg: 'bg-blue-600' },
+  { id: 'Departments', label: 'Departments', icon: Building2, description: 'Business units and organisational groups', count: 0, color: 'bg-violet-600', bg: 'bg-violet-600' },
+  { id: 'Classifications', label: 'Classifications', icon: Tags, description: 'Cost groupings: Admin, Tech, Marketing', count: 0, color: 'bg-emerald-600', bg: 'bg-emerald-600' },
+  { id: 'FinancialGroups', label: 'Financial Groups', icon: Layers, description: 'P&L structure: Revenue, COS, OPEX', count: 0, color: 'bg-amber-600', bg: 'bg-amber-600' },
+  { id: 'DepartmentGroups', label: 'Dept Groups', icon: FolderTree, description: 'BU/SU groupings for departments', count: 0, color: 'bg-rose-600', bg: 'bg-rose-600' },
+  { id: 'Currencies', label: 'Currencies', icon: DollarSign, description: 'Supported currencies and exchange rates', count: 0, color: 'bg-purple-600', bg: 'bg-purple-600' },
+  { id: 'OdooSync', label: 'Odoo Sync', icon: RefreshCw, description: 'Sync actuals from Odoo ERP and manage integration', count: 0, color: 'bg-cyan-600', bg: 'bg-cyan-600' },
 ]
 
 export default function MasterDataPage() {
@@ -110,7 +111,7 @@ export default function MasterDataPage() {
               >
                 <div className="flex items-start justify-between">
                   <span className={cn('flex size-11 items-center justify-center rounded-xl', c.bg)}>
-                    <Icon className={cn('size-5', c.color)} />
+                    <Icon className="size-5 text-white" />
                   </span>
                   <span className="text-2xl font-bold tabular-nums text-foreground">
                     {c.count}
@@ -120,9 +121,9 @@ export default function MasterDataPage() {
                   <p className="font-semibold text-foreground">{c.label}</p>
                   <p className="mt-0.5 text-sm text-muted-foreground">{c.description}</p>
                 </div>
-                <div className={cn('flex items-center gap-1 text-xs font-medium', c.color)}>
+                <div className={cn('inline-flex items-center gap-1 self-start rounded-md px-3 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90', c.color)}>
                   Manage
-                  <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                  <ChevronRight className="size-3.5" />
                 </div>
               </button>
             )
@@ -189,6 +190,7 @@ function DepartmentsGrid({ addTrigger }: { addTrigger: number }) {
   const [deptGroups, setDeptGroups] = useState<LookupItem[]>([])
   const [editModal, setEditModal] = useState<DeptRow | null>(null)
   const [deleteId, setDeleteId] = useState<number | null>(null)
+  const [page, setPage] = useState(1)
 
   const load = async () => {
     setLoading(true)
@@ -251,6 +253,10 @@ function DepartmentsGrid({ addTrigger }: { addTrigger: number }) {
 
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
 
+  const totalPages = Math.max(1, Math.ceil(depts.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const paginatedDepts = depts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+
   return (
     <>
       <Card>
@@ -271,7 +277,7 @@ function DepartmentsGrid({ addTrigger }: { addTrigger: number }) {
                 </TableCell>
               </TableRow>
             )}
-            {depts.map((d) => (
+            {paginatedDepts.map((d) => (
               <TableRow key={d.id}>
                 <TableCell className="pl-6">
                   <RowActions onEdit={() => setEditModal(d)} onDelete={() => setDeleteId(d.id)} />
@@ -285,6 +291,22 @@ function DepartmentsGrid({ addTrigger }: { addTrigger: number }) {
             ))}
           </TableBody>
         </Table>
+        {depts.length > PAGE_SIZE && (
+          <div className="flex items-center justify-between border-t border-border px-6 py-3">
+            <p className="text-sm text-muted-foreground">
+              Showing {paginatedDepts.length} of {depts.length} departments
+            </p>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon-sm" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} aria-label="Previous page">
+                <ChevronLeft className="size-4" />
+              </Button>
+              <span className="text-sm">Page {currentPage} of {totalPages}</span>
+              <Button variant="outline" size="icon-sm" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)} aria-label="Next page">
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Edit/Create Modal */}
@@ -356,6 +378,8 @@ function DepartmentModal({
 
 // ─── Category CRUD ────────────────────────────────────────────────────────────
 
+const PAGE_SIZE = 10
+
 interface CatRow { id: number; name: string; financialGroup: string; classification: string; financialGroupId: number; classificationId: number | null }
 
 function CategoriesGrid({ addTrigger }: { addTrigger: number }) {
@@ -365,6 +389,7 @@ function CategoriesGrid({ addTrigger }: { addTrigger: number }) {
   const [clList, setClList] = useState<LookupItem[]>([])
   const [editModal, setEditModal] = useState<CatRow | null>(null)
   const [deleteId, setDeleteId] = useState<number | null>(null)
+  const [page, setPage] = useState(1)
 
   const load = async () => {
     setLoading(true)
@@ -410,6 +435,10 @@ function CategoriesGrid({ addTrigger }: { addTrigger: number }) {
 
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
 
+  const totalPages = Math.max(1, Math.ceil(cats.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const paginatedCats = cats.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+
   return (
     <>
       <Card>
@@ -426,7 +455,7 @@ function CategoriesGrid({ addTrigger }: { addTrigger: number }) {
             {cats.length === 0 && (
               <TableRow><TableCell colSpan={4} className="py-8 text-center text-muted-foreground">No categories found. Click "Add Category" to create one.</TableCell></TableRow>
             )}
-            {cats.map((c) => (
+            {paginatedCats.map((c) => (
               <TableRow key={c.id}>
                 <TableCell className="pl-6"><RowActions onEdit={() => setEditModal(c)} onDelete={() => setDeleteId(c.id)} /></TableCell>
                 <TableCell className="font-medium">{c.name}</TableCell>
@@ -436,6 +465,22 @@ function CategoriesGrid({ addTrigger }: { addTrigger: number }) {
             ))}
           </TableBody>
         </Table>
+        {cats.length > PAGE_SIZE && (
+          <div className="flex items-center justify-between border-t border-border px-6 py-3">
+            <p className="text-sm text-muted-foreground">
+              Showing {paginatedCats.length} of {cats.length} categories
+            </p>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon-sm" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} aria-label="Previous page">
+                <ChevronLeft className="size-4" />
+              </Button>
+              <span className="text-sm">Page {currentPage} of {totalPages}</span>
+              <Button variant="outline" size="icon-sm" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)} aria-label="Next page">
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
 
       {editModal !== null && (
@@ -509,8 +554,13 @@ function LookupGrid({ title, rows, addTrigger, onSave, onDelete }: {
   const [editModal, setEditModal] = useState<LookupItem | null>(null)
   const [delId, setDelId] = useState<number | null>(null)
   const [name, setName] = useState('')
+  const [page, setPage] = useState(1)
 
   useEffect(() => { if (addTrigger > 0) setEditModal({ id: 0, name: '' }) }, [addTrigger])
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const paginatedRows = rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   return (
     <>
@@ -527,7 +577,7 @@ function LookupGrid({ title, rows, addTrigger, onSave, onDelete }: {
             {rows.length === 0 && (
               <TableRow><TableCell colSpan={3} className="py-8 text-center text-muted-foreground">No entries found.</TableCell></TableRow>
             )}
-            {rows.map((r) => (
+            {paginatedRows.map((r) => (
               <TableRow key={r.id}>
                 <TableCell className="pl-6">
                   <RowActions onEdit={() => { setEditModal(r); setName(r.name) }} onDelete={() => setDelId(r.id)} />
@@ -538,6 +588,22 @@ function LookupGrid({ title, rows, addTrigger, onSave, onDelete }: {
             ))}
           </TableBody>
         </Table>
+        {rows.length > PAGE_SIZE && (
+          <div className="flex items-center justify-between border-t border-border px-6 py-3">
+            <p className="text-sm text-muted-foreground">
+              Showing {paginatedRows.length} of {rows.length} entries
+            </p>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon-sm" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} aria-label="Previous page">
+                <ChevronLeft className="size-4" />
+              </Button>
+              <span className="text-sm">Page {currentPage} of {totalPages}</span>
+              <Button variant="outline" size="icon-sm" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)} aria-label="Next page">
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
 
       {editModal && (
@@ -617,6 +683,7 @@ function DepartmentGroupsGrid({ addTrigger }: { addTrigger: number }) {
 function CurrenciesGrid() {
   const [rows, setRows] = useState<{ id: number; code: string; rate: number }[]>([])
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
 
   const load = async () => {
     setLoading(true)
@@ -632,6 +699,10 @@ function CurrenciesGrid() {
     try { await httpClient.put(`/api/currencies/${id}`, { id, code: rows.find(r => r.id === id)?.code, exchangeRateToUSD: rate, updateDT: new Date().toISOString() }); await load() } catch {}
   }
 
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const paginatedRows = rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
 
   return (
@@ -644,7 +715,7 @@ function CurrenciesGrid() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((c) => (
+          {paginatedRows.map((c) => (
             <TableRow key={c.id}>
               <TableCell className="pl-6 font-mono font-medium">{c.code}</TableCell>
               <TableCell className="pr-6">
@@ -657,6 +728,22 @@ function CurrenciesGrid() {
           ))}
         </TableBody>
       </Table>
+      {rows.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between border-t border-border px-6 py-3">
+          <p className="text-sm text-muted-foreground">
+            Showing {paginatedRows.length} of {rows.length} currencies
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon-sm" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} aria-label="Previous page">
+              <ChevronLeft className="size-4" />
+            </Button>
+            <span className="text-sm">Page {currentPage} of {totalPages}</span>
+            <Button variant="outline" size="icon-sm" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)} aria-label="Next page">
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </Card>
   )
 }
