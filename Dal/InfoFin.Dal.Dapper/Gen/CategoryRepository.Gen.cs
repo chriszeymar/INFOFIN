@@ -108,7 +108,14 @@ namespace InfoFin.Dal.Dapper
                 dParams.Add("Id", category.Id);
             if (category.ClassificationId != null)
                 dParams.Add("ClassificationId", category.ClassificationId);
-            dParams.Add("IsActive", category.IsActive);
+            if (category.OdooAccountId != null)
+                dParams.Add("OdooAccountId", category.OdooAccountId);
+            if (category.OdooAccountCode != null)
+                dParams.Add("OdooAccountCode", category.OdooAccountCode);
+            if (category.OdooAccountType != null)
+                dParams.Add("OdooAccountType", category.OdooAccountType);
+            if (category.IsActive != null)
+                dParams.Add("IsActive", category.IsActive);
             dParams.Add("RetMsg", string.Empty, dbType: DbType.String, direction: ParameterDirection.Output);
             dParams.Add("RetVal", dbType: DbType.Int32, direction: ParameterDirection.ReturnValue);
             using (SqlConnection connection = GetConnection())

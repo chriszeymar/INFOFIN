@@ -11,13 +11,12 @@ namespace InfoFin.Model
         public int? Month { get; set; }
         public decimal ForecastAmount { get; set; }
         public int CurrencyId { get; set; }
-        public DateTime CreateDT { get; set; }
-        public DateTime UpdateDT { get; set; }
+        public DateTime? CreateDT { get; set; }
+        public DateTime? UpdateDT { get; set; }
+        public bool? IsActive { get; set; }
         public int? TotalRows { get; set; }
-        public Department? Department { get; set; }
         public Category? Category { get; set; }
         public Currency? Currency { get; set; }
+        public Department? Department { get; set; }
     }
 }
-
-

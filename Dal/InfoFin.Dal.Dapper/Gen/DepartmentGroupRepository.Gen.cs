@@ -104,7 +104,8 @@ namespace InfoFin.Dal.Dapper
             dParams.Add("BucketTypeId", departmentGroup.BucketTypeId);
             if (departmentGroup.Id != null)
                 dParams.Add("Id", departmentGroup.Id);
-            dParams.Add("IsActive", departmentGroup.IsActive);
+            if (departmentGroup.IsActive != null)
+                dParams.Add("IsActive", departmentGroup.IsActive);
             dParams.Add("RetMsg", string.Empty, dbType: DbType.String, direction: ParameterDirection.Output);
             dParams.Add("RetVal", dbType: DbType.Int32, direction: ParameterDirection.ReturnValue);
             using (SqlConnection connection = GetConnection())

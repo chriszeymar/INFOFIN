@@ -24,6 +24,9 @@ namespace InfoFin.ServiceCollectionExtension.Gen
             services.AddTransient<ISpendRequestHistoryService, SpendRequestHistoryService>();
             services.AddTransient<IUserService, UserService>();
             services.AddTransient<IVendorService, VendorService>();
+            services.AddTransient<IActualsService, ActualsService>();
+            services.AddTransient<IOdooAccountMappingService, OdooAccountMappingService>();
+            services.AddTransient<IOdooJournalLineService, OdooJournalLineService>();
             return services;
         }
     }

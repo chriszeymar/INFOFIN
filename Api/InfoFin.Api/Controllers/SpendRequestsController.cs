@@ -54,7 +54,7 @@ public class SpendRequestsController : ControllerBase
             return Unauthorized();
         }
 
-        var requests = await _spendRequestService.GetSpendRequestByIds(null, null, null, null, null, true);
+        var requests = await _spendRequestService.GetSpendRequestByIds(null, null, null, null, null, null, null);
         requests = await FilterByScope(requests, context);
 
         if (!string.IsNullOrWhiteSpace(status))

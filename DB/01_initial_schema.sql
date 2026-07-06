@@ -117,6 +117,7 @@ CREATE TABLE [dbo].[SpendRequest] (
     [DepartmentId] INT NOT NULL,
     [CategoryId] INT NOT NULL,
     [EncoderId] INT NOT NULL,
+    [AssignedToUserId] INT NULL, -- ADDED: Assignee user for workflow routing
     [Amount] DECIMAL(18,2) NOT NULL,
     [CurrencyId] INT NOT NULL,
     [LockedExchangeRate] DECIMAL(18,6) NOT NULL, -- ADDED: Point-in-time exchange rate
@@ -128,6 +129,7 @@ CREATE TABLE [dbo].[SpendRequest] (
     CONSTRAINT [FK_SpendRequest_Department] FOREIGN KEY ([DepartmentId]) REFERENCES [dbo].[Department]([Id]),
     CONSTRAINT [FK_SpendRequest_Category] FOREIGN KEY ([CategoryId]) REFERENCES [dbo].[Category]([Id]),
     CONSTRAINT [FK_SpendRequest_Encoder] FOREIGN KEY ([EncoderId]) REFERENCES [dbo].[User]([Id]),
+    CONSTRAINT [FK_SpendRequest_AssignedToUser] FOREIGN KEY ([AssignedToUserId]) REFERENCES [dbo].[User]([Id]),
     CONSTRAINT [FK_SpendRequest_Currency] FOREIGN KEY ([CurrencyId]) REFERENCES [dbo].[Currency]([Id]),
     CONSTRAINT [FK_SpendRequest_Vendor] FOREIGN KEY ([VendorId]) REFERENCES [dbo].[Vendor]([Id])
 );

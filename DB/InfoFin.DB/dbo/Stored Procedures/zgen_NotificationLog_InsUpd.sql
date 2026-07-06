@@ -4,7 +4,7 @@
 -- ===================================================================
 
 CREATE   PROCEDURE [dbo].[zgen_NotificationLog_InsUpd]
-  (@SpendRequestId INT,@RecipientUserId INT,@TriggerStatus NVARCHAR(50),@IsSuccessful BIT,@Id INT=NULL,@RetMsg NVARCHAR(MAX) OUTPUT)
+  (@SpendRequestId INT,@RecipientUserId INT,@TriggerStatus NVARCHAR(50),@IsSuccessful BIT=0,@Id INT=NULL,@IsActive BIT=1,@RetMsg NVARCHAR(MAX) OUTPUT)
 AS
 BEGIN
   DECLARE @InitialTransCount INT = @@TRANCOUNT;
@@ -16,15 +16,15 @@ BEGIN
     IF @Id IS NULL
     BEGIN
       INSERT INTO [dbo].[NotificationLog]
-        ([SpendRequestId],[RecipientUserId],[TriggerStatus],[IsSuccessful])
+        ([SpendRequestId],[RecipientUserId],[TriggerStatus],[IsSuccessful],[IsActive])
       VALUES
-        (@SpendRequestId,@RecipientUserId,@TriggerStatus,@IsSuccessful);
+        (@SpendRequestId,@RecipientUserId,@TriggerStatus,@IsSuccessful,@IsActive);
       SELECT * FROM [dbo].[NotificationLog] WHERE [Id] = SCOPE_IDENTITY();
     END
   ELSE
     BEGIN
       UPDATE [dbo].[NotificationLog]
-        SET [SpendRequestId]=@SpendRequestId,[RecipientUserId]=@RecipientUserId,[TriggerStatus]=@TriggerStatus,[IsSuccessful]=@IsSuccessful,[UpdateDT]=GETDATE()
+        SET [SpendRequestId]=@SpendRequestId,[RecipientUserId]=@RecipientUserId,[TriggerStatus]=@TriggerStatus,[IsSuccessful]=@IsSuccessful,[IsActive]=@IsActive,[UpdateDT]=GETDATE()
         WHERE ([Id] = @Id);
       SELECT * FROM [dbo].[NotificationLog] WHERE [Id] = @Id;
     END

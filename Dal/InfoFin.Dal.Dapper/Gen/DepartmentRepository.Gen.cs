@@ -104,7 +104,10 @@ namespace InfoFin.Dal.Dapper
             dParams.Add("DepartmentGroupId", department.DepartmentGroupId);
             if (department.Id != null)
                 dParams.Add("Id", department.Id);
-            dParams.Add("IsActive", department.IsActive);
+            if (department.OdooCompanyId != null)
+                dParams.Add("OdooCompanyId", department.OdooCompanyId);
+            if (department.IsActive != null)
+                dParams.Add("IsActive", department.IsActive);
             dParams.Add("RetMsg", string.Empty, dbType: DbType.String, direction: ParameterDirection.Output);
             dParams.Add("RetVal", dbType: DbType.Int32, direction: ParameterDirection.ReturnValue);
             using (SqlConnection connection = GetConnection())

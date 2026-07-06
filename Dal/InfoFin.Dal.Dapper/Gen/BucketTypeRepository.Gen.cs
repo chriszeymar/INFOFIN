@@ -84,7 +84,8 @@ namespace InfoFin.Dal.Dapper
             dParams.Add("Name", bucketType.Name);
             if (bucketType.Id != null)
                 dParams.Add("Id", bucketType.Id);
-            dParams.Add("IsActive", bucketType.IsActive);
+            if (bucketType.IsActive != null)
+                dParams.Add("IsActive", bucketType.IsActive);
             dParams.Add("RetMsg", string.Empty, dbType: DbType.String, direction: ParameterDirection.Output);
             dParams.Add("RetVal", dbType: DbType.Int32, direction: ParameterDirection.ReturnValue);
             using (SqlConnection connection = GetConnection())

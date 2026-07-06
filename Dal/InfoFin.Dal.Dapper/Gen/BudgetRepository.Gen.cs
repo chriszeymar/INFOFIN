@@ -113,6 +113,8 @@ namespace InfoFin.Dal.Dapper
                 dParams.Add("Id", budget.Id);
             if (budget.Month != null)
                 dParams.Add("Month", budget.Month);
+            if (budget.IsActive != null)
+                dParams.Add("IsActive", budget.IsActive);
             dParams.Add("RetMsg", string.Empty, dbType: DbType.String, direction: ParameterDirection.Output);
             dParams.Add("RetVal", dbType: DbType.Int32, direction: ParameterDirection.ReturnValue);
             using (SqlConnection connection = GetConnection())

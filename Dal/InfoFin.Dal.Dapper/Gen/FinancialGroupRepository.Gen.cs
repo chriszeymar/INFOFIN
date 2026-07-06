@@ -84,7 +84,8 @@ namespace InfoFin.Dal.Dapper
             dParams.Add("Name", financialGroup.Name);
             if (financialGroup.Id != null)
                 dParams.Add("Id", financialGroup.Id);
-            dParams.Add("IsActive", financialGroup.IsActive);
+            if (financialGroup.IsActive != null)
+                dParams.Add("IsActive", financialGroup.IsActive);
             dParams.Add("RetMsg", string.Empty, dbType: DbType.String, direction: ParameterDirection.Output);
             dParams.Add("RetVal", dbType: DbType.Int32, direction: ParameterDirection.ReturnValue);
             using (SqlConnection connection = GetConnection())

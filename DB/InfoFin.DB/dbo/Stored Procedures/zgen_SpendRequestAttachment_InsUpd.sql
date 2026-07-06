@@ -4,7 +4,7 @@
 -- ===================================================================
 
 CREATE   PROCEDURE [dbo].[zgen_SpendRequestAttachment_InsUpd]
-  (@SpendRequestId INT,@FileUrl NVARCHAR(MAX),@FileName NVARCHAR(255),@UploadedByUserId INT,@Id INT=NULL,@RetMsg NVARCHAR(MAX) OUTPUT)
+  (@SpendRequestId INT,@FileUrl NVARCHAR(MAX),@FileName NVARCHAR(255),@UploadedByUserId INT,@Id INT=NULL,@IsActive BIT=1,@RetMsg NVARCHAR(MAX) OUTPUT)
 AS
 BEGIN
   DECLARE @InitialTransCount INT = @@TRANCOUNT;
@@ -16,15 +16,15 @@ BEGIN
     IF @Id IS NULL
     BEGIN
       INSERT INTO [dbo].[SpendRequestAttachment]
-        ([SpendRequestId],[FileUrl],[FileName],[UploadedByUserId])
+        ([SpendRequestId],[FileUrl],[FileName],[UploadedByUserId],[IsActive])
       VALUES
-        (@SpendRequestId,@FileUrl,@FileName,@UploadedByUserId);
+        (@SpendRequestId,@FileUrl,@FileName,@UploadedByUserId,@IsActive);
       SELECT * FROM [dbo].[SpendRequestAttachment] WHERE [Id] = SCOPE_IDENTITY();
     END
   ELSE
     BEGIN
       UPDATE [dbo].[SpendRequestAttachment]
-        SET [SpendRequestId]=@SpendRequestId,[FileUrl]=@FileUrl,[FileName]=@FileName,[UploadedByUserId]=@UploadedByUserId,[UpdateDT]=GETDATE()
+        SET [SpendRequestId]=@SpendRequestId,[FileUrl]=@FileUrl,[FileName]=@FileName,[UploadedByUserId]=@UploadedByUserId,[IsActive]=@IsActive,[UpdateDT]=GETDATE()
         WHERE ([Id] = @Id);
       SELECT * FROM [dbo].[SpendRequestAttachment] WHERE [Id] = @Id;
     END

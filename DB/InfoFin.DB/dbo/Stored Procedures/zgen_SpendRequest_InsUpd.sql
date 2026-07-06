@@ -4,7 +4,7 @@
 -- ===================================================================
 
 CREATE   PROCEDURE [dbo].[zgen_SpendRequest_InsUpd]
-  (@ReferenceNumber NVARCHAR(50),@DepartmentId INT,@CategoryId INT,@EncoderId INT,@Amount DECIMAL(18,2),@CurrencyId INT,@LockedExchangeRate DECIMAL(18,6),@Description NVARCHAR(MAX),@Status NVARCHAR(50),@Id INT=NULL,@VendorId INT=NULL,@RetMsg NVARCHAR(MAX) OUTPUT)
+  (@ReferenceNumber NVARCHAR(50),@DepartmentId INT,@CategoryId INT,@EncoderId INT,@Amount DECIMAL(18, 2),@CurrencyId INT,@LockedExchangeRate DECIMAL(18, 6),@Description NVARCHAR(MAX),@Status NVARCHAR(50),@Id INT=NULL,@AssignedToUserId INT=NULL,@VendorId INT=NULL,@RetMsg NVARCHAR(MAX) OUTPUT)
 AS
 BEGIN
   DECLARE @InitialTransCount INT = @@TRANCOUNT;
@@ -16,15 +16,15 @@ BEGIN
     IF @Id IS NULL
     BEGIN
       INSERT INTO [dbo].[SpendRequest]
-        ([ReferenceNumber],[DepartmentId],[CategoryId],[EncoderId],[Amount],[CurrencyId],[LockedExchangeRate],[Description],[Status],[VendorId])
+        ([ReferenceNumber],[DepartmentId],[CategoryId],[EncoderId],[Amount],[CurrencyId],[LockedExchangeRate],[Description],[Status],[AssignedToUserId],[VendorId])
       VALUES
-        (@ReferenceNumber,@DepartmentId,@CategoryId,@EncoderId,@Amount,@CurrencyId,@LockedExchangeRate,@Description,@Status,@VendorId);
+        (@ReferenceNumber,@DepartmentId,@CategoryId,@EncoderId,@Amount,@CurrencyId,@LockedExchangeRate,@Description,@Status,@AssignedToUserId,@VendorId);
       SELECT * FROM [dbo].[SpendRequest] WHERE [Id] = SCOPE_IDENTITY();
     END
   ELSE
     BEGIN
       UPDATE [dbo].[SpendRequest]
-        SET [ReferenceNumber]=@ReferenceNumber,[DepartmentId]=@DepartmentId,[CategoryId]=@CategoryId,[EncoderId]=@EncoderId,[Amount]=@Amount,[CurrencyId]=@CurrencyId,[LockedExchangeRate]=@LockedExchangeRate,[Description]=@Description,[Status]=@Status,[VendorId]=@VendorId,[UpdateDT]=GETDATE()
+        SET [ReferenceNumber]=@ReferenceNumber,[DepartmentId]=@DepartmentId,[CategoryId]=@CategoryId,[EncoderId]=@EncoderId,[Amount]=@Amount,[CurrencyId]=@CurrencyId,[LockedExchangeRate]=@LockedExchangeRate,[Description]=@Description,[Status]=@Status,[AssignedToUserId]=@AssignedToUserId,[VendorId]=@VendorId,[UpdateDT]=GETDATE()
         WHERE ([Id] = @Id);
       SELECT * FROM [dbo].[SpendRequest] WHERE [Id] = @Id;
     END

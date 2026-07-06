@@ -4,7 +4,7 @@
 -- ===================================================================
 
 CREATE   PROCEDURE [dbo].[zgen_Category_InsUpd]
-  (@Name NVARCHAR(200),@FinancialGroupId INT,@Id INT=NULL,@ClassificationId INT=NULL,@IsActive BIT,@RetMsg NVARCHAR(MAX) OUTPUT)
+  (@Name NVARCHAR(200),@FinancialGroupId INT,@Id INT=NULL,@ClassificationId INT=NULL,@OdooAccountId INT=NULL,@OdooAccountCode NVARCHAR(100)=NULL,@OdooAccountType NVARCHAR(50)=NULL,@IsActive BIT=1,@RetMsg NVARCHAR(MAX) OUTPUT)
 AS
 BEGIN
   DECLARE @InitialTransCount INT = @@TRANCOUNT;
@@ -16,15 +16,15 @@ BEGIN
     IF @Id IS NULL
     BEGIN
       INSERT INTO [dbo].[Category]
-        ([Name],[FinancialGroupId],[ClassificationId],[IsActive])
+        ([Name],[FinancialGroupId],[ClassificationId],[OdooAccountId],[OdooAccountCode],[OdooAccountType],[IsActive])
       VALUES
-        (@Name,@FinancialGroupId,@ClassificationId,@IsActive);
+        (@Name,@FinancialGroupId,@ClassificationId,@OdooAccountId,@OdooAccountCode,@OdooAccountType,@IsActive);
       SELECT * FROM [dbo].[Category] WHERE [Id] = SCOPE_IDENTITY();
     END
   ELSE
     BEGIN
       UPDATE [dbo].[Category]
-        SET [Name]=@Name,[FinancialGroupId]=@FinancialGroupId,[ClassificationId]=@ClassificationId,[IsActive]=@IsActive,[UpdateDT]=GETDATE()
+        SET [Name]=@Name,[FinancialGroupId]=@FinancialGroupId,[ClassificationId]=@ClassificationId,[OdooAccountId]=@OdooAccountId,[OdooAccountCode]=@OdooAccountCode,[OdooAccountType]=@OdooAccountType,[IsActive]=@IsActive,[UpdateDT]=GETDATE()
         WHERE ([Id] = @Id);
       SELECT * FROM [dbo].[Category] WHERE [Id] = @Id;
     END

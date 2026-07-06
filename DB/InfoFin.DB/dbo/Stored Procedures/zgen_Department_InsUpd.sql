@@ -4,7 +4,7 @@
 -- ===================================================================
 
 CREATE   PROCEDURE [dbo].[zgen_Department_InsUpd]
-  (@Name NVARCHAR(100),@DepartmentGroupId INT,@Id INT=NULL,@IsActive BIT,@RetMsg NVARCHAR(MAX) OUTPUT)
+  (@Name NVARCHAR(100),@DepartmentGroupId INT,@Id INT=NULL,@OdooCompanyId INT=NULL,@IsActive BIT=1,@RetMsg NVARCHAR(MAX) OUTPUT)
 AS
 BEGIN
   DECLARE @InitialTransCount INT = @@TRANCOUNT;
@@ -16,15 +16,15 @@ BEGIN
     IF @Id IS NULL
     BEGIN
       INSERT INTO [dbo].[Department]
-        ([Name],[DepartmentGroupId],[IsActive])
+        ([Name],[DepartmentGroupId],[OdooCompanyId],[IsActive])
       VALUES
-        (@Name,@DepartmentGroupId,@IsActive);
+        (@Name,@DepartmentGroupId,@OdooCompanyId,@IsActive);
       SELECT * FROM [dbo].[Department] WHERE [Id] = SCOPE_IDENTITY();
     END
   ELSE
     BEGIN
       UPDATE [dbo].[Department]
-        SET [Name]=@Name,[DepartmentGroupId]=@DepartmentGroupId,[IsActive]=@IsActive,[UpdateDT]=GETDATE()
+        SET [Name]=@Name,[DepartmentGroupId]=@DepartmentGroupId,[OdooCompanyId]=@OdooCompanyId,[IsActive]=@IsActive,[UpdateDT]=GETDATE()
         WHERE ([Id] = @Id);
       SELECT * FROM [dbo].[Department] WHERE [Id] = @Id;
     END

@@ -22,7 +22,7 @@ public class ReportsController : ControllerBase
     [HttpGet("approval-cycle-time")]
     public async Task<IActionResult> ApprovalCycleTime()
     {
-        var requests = await _spendRequestService.GetSpendRequestByIds(null, null, null, null, null, true);
+        var requests = await _spendRequestService.GetSpendRequestByIds(null, null, null, null, null, null, null);
 
         var approved = requests
             .Where(x => string.Equals(x.Status, "Approved", StringComparison.OrdinalIgnoreCase))
@@ -30,7 +30,7 @@ public class ReportsController : ControllerBase
 
         var avgHours = approved.Count == 0
             ? 0
-            : approved.Average(x => (x.UpdateDT - x.CreateDT).TotalHours);
+            : approved.Average(x => ((x.UpdateDT ?? x.CreateDT ?? DateTime.MinValue) - (x.CreateDT ?? DateTime.MinValue)).TotalHours);
 
         return Ok(new
         {
@@ -48,7 +48,7 @@ public class ReportsController : ControllerBase
             budgets = budgets.Where(x => x.Year == year.Value).ToList();
         }
 
-        var requests = await _spendRequestService.GetSpendRequestByIds(null, null, null, null, null, true);
+        var requests = await _spendRequestService.GetSpendRequestByIds(null, null, null, null, null, null, null);
         var approvedSpend = requests
             .Where(x => string.Equals(x.Status, "Approved", StringComparison.OrdinalIgnoreCase))
             .Sum(x => x.Amount);
@@ -67,7 +67,7 @@ public class ReportsController : ControllerBase
     [HttpGet("spend-by-bu-su")]
     public async Task<IActionResult> SpendByBuSu()
     {
-        var requests = await _spendRequestService.GetSpendRequestByIds(null, null, null, null, null, true);
+        var requests = await _spendRequestService.GetSpendRequestByIds(null, null, null, null, null, null, null);
 
         var grouped = requests
             .Where(x => string.Equals(x.Status, "Approved", StringComparison.OrdinalIgnoreCase))

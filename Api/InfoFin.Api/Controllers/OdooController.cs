@@ -133,7 +133,7 @@ public class OdooController : ControllerBase
         }
     }
 
-    private async Task StoreJournalLines(List<OdooJournalLine> lines)
+    private async Task StoreJournalLines(List<InfoFin.Integration.Odoo.OdooJournalLine> lines)
     {
         await using var conn = new SqlConnection(_connStr);
         const string sql = """

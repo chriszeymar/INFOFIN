@@ -108,6 +108,8 @@ namespace InfoFin.Dal.Dapper
             dParams.Add("UploadedByUserId", spendRequestAttachment.UploadedByUserId);
             if (spendRequestAttachment.Id != null)
                 dParams.Add("Id", spendRequestAttachment.Id);
+            if (spendRequestAttachment.IsActive != null)
+                dParams.Add("IsActive", spendRequestAttachment.IsActive);
             dParams.Add("RetMsg", string.Empty, dbType: DbType.String, direction: ParameterDirection.Output);
             dParams.Add("RetVal", dbType: DbType.Int32, direction: ParameterDirection.ReturnValue);
             using (SqlConnection connection = GetConnection())

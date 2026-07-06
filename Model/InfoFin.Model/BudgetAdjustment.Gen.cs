@@ -10,11 +10,11 @@ namespace InfoFin.Model
         public decimal NewAmount { get; set; }
         public int AdjustedByUserId { get; set; }
         public string? Reason { get; set; }
-        public DateTime CreateDT { get; set; }
+        public DateTime? CreateDT { get; set; }
+        public DateTime? UpdateDT { get; set; }
+        public bool? IsActive { get; set; }
         public int? TotalRows { get; set; }
         public Budget? Budget { get; set; }
-//         public AdjustedByUser? AdjustedByUser { get; set; }
+        public User? AdjustedByUser { get; set; }
     }
 }
-
-

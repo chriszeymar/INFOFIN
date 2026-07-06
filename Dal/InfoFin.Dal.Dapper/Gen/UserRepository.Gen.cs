@@ -109,7 +109,8 @@ namespace InfoFin.Dal.Dapper
                 dParams.Add("Id", user.Id);
             if (user.DepartmentId != null)
                 dParams.Add("DepartmentId", user.DepartmentId);
-            dParams.Add("IsActive", user.IsActive);
+            if (user.IsActive != null)
+                dParams.Add("IsActive", user.IsActive);
             dParams.Add("RetMsg", string.Empty, dbType: DbType.String, direction: ParameterDirection.Output);
             dParams.Add("RetVal", dbType: DbType.Int32, direction: ParameterDirection.ReturnValue);
             using (SqlConnection connection = GetConnection())

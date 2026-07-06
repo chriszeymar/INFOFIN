@@ -4,7 +4,7 @@
 -- ===================================================================
 
 CREATE   PROCEDURE [dbo].[zgen_BudgetAdjustment_InsUpd]
-  (@BudgetId INT,@OldAmount DECIMAL(18,2),@NewAmount DECIMAL(18,2),@AdjustedByUserId INT,@Id INT=NULL,@Reason NVARCHAR(MAX)=NULL,@RetMsg NVARCHAR(MAX) OUTPUT)
+  (@BudgetId INT,@OldAmount DECIMAL(18, 2),@NewAmount DECIMAL(18, 2),@AdjustedByUserId INT,@Id INT=NULL,@Reason NVARCHAR(MAX)=NULL,@IsActive BIT=1,@RetMsg NVARCHAR(MAX) OUTPUT)
 AS
 BEGIN
   DECLARE @InitialTransCount INT = @@TRANCOUNT;
@@ -16,15 +16,15 @@ BEGIN
     IF @Id IS NULL
     BEGIN
       INSERT INTO [dbo].[BudgetAdjustment]
-        ([BudgetId],[OldAmount],[NewAmount],[AdjustedByUserId],[Reason])
+        ([BudgetId],[OldAmount],[NewAmount],[AdjustedByUserId],[Reason],[IsActive])
       VALUES
-        (@BudgetId,@OldAmount,@NewAmount,@AdjustedByUserId,@Reason);
+        (@BudgetId,@OldAmount,@NewAmount,@AdjustedByUserId,@Reason,@IsActive);
       SELECT * FROM [dbo].[BudgetAdjustment] WHERE [Id] = SCOPE_IDENTITY();
     END
   ELSE
     BEGIN
       UPDATE [dbo].[BudgetAdjustment]
-        SET [BudgetId]=@BudgetId,[OldAmount]=@OldAmount,[NewAmount]=@NewAmount,[AdjustedByUserId]=@AdjustedByUserId,[Reason]=@Reason,[UpdateDT]=GETDATE()
+        SET [BudgetId]=@BudgetId,[OldAmount]=@OldAmount,[NewAmount]=@NewAmount,[AdjustedByUserId]=@AdjustedByUserId,[Reason]=@Reason,[IsActive]=@IsActive,[UpdateDT]=GETDATE()
         WHERE ([Id] = @Id);
       SELECT * FROM [dbo].[BudgetAdjustment] WHERE [Id] = @Id;
     END

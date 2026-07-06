@@ -85,6 +85,8 @@ namespace InfoFin.Dal.Dapper
             dParams.Add("ExchangeRateToUSD", currency.ExchangeRateToUSD);
             if (currency.Id != null)
                 dParams.Add("Id", currency.Id);
+            if (currency.IsActive != null)
+                dParams.Add("IsActive", currency.IsActive);
             dParams.Add("RetMsg", string.Empty, dbType: DbType.String, direction: ParameterDirection.Output);
             dParams.Add("RetVal", dbType: DbType.Int32, direction: ParameterDirection.ReturnValue);
             using (SqlConnection connection = GetConnection())

@@ -4,7 +4,7 @@
 -- ===================================================================
 
 CREATE   PROCEDURE [dbo].[zgen_User_InsUpd]
-  (@Email NVARCHAR(100),@PasswordHash NVARCHAR(MAX),@RoleId INT,@Id INT=NULL,@DepartmentId INT=NULL,@IsActive BIT,@RetMsg NVARCHAR(MAX) OUTPUT)
+  (@Email NVARCHAR(100),@PasswordHash NVARCHAR(MAX),@RoleId INT,@Id INT=NULL,@DepartmentId INT=NULL,@IsActive BIT=1,@RetMsg NVARCHAR(MAX) OUTPUT)
 AS
 BEGIN
   DECLARE @InitialTransCount INT = @@TRANCOUNT;

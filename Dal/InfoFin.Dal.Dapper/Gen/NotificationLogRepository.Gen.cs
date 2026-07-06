@@ -105,9 +105,12 @@ namespace InfoFin.Dal.Dapper
             dParams.Add("SpendRequestId", notificationLog.SpendRequestId);
             dParams.Add("RecipientUserId", notificationLog.RecipientUserId);
             dParams.Add("TriggerStatus", notificationLog.TriggerStatus);
-            dParams.Add("IsSuccessful", notificationLog.IsSuccessful);
+            if (notificationLog.IsSuccessful != null)
+                dParams.Add("IsSuccessful", notificationLog.IsSuccessful);
             if (notificationLog.Id != null)
                 dParams.Add("Id", notificationLog.Id);
+            if (notificationLog.IsActive != null)
+                dParams.Add("IsActive", notificationLog.IsActive);
             dParams.Add("RetMsg", string.Empty, dbType: DbType.String, direction: ParameterDirection.Output);
             dParams.Add("RetVal", dbType: DbType.Int32, direction: ParameterDirection.ReturnValue);
             using (SqlConnection connection = GetConnection())

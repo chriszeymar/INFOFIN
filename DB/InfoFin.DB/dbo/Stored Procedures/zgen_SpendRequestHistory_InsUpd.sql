@@ -4,7 +4,7 @@
 -- ===================================================================
 
 CREATE   PROCEDURE [dbo].[zgen_SpendRequestHistory_InsUpd]
-  (@SpendRequestId INT,@ActionById INT,@OldStatus NVARCHAR(50),@NewStatus NVARCHAR(50),@Id INT=NULL,@Comments NVARCHAR(MAX)=NULL,@RetMsg NVARCHAR(MAX) OUTPUT)
+  (@SpendRequestId INT,@ActionById INT,@OldStatus NVARCHAR(50),@NewStatus NVARCHAR(50),@Id INT=NULL,@Comments NVARCHAR(MAX)=NULL,@IsActive BIT=1,@RetMsg NVARCHAR(MAX) OUTPUT)
 AS
 BEGIN
   DECLARE @InitialTransCount INT = @@TRANCOUNT;
@@ -16,15 +16,15 @@ BEGIN
     IF @Id IS NULL
     BEGIN
       INSERT INTO [dbo].[SpendRequestHistory]
-        ([SpendRequestId],[ActionById],[OldStatus],[NewStatus],[Comments])
+        ([SpendRequestId],[ActionById],[OldStatus],[NewStatus],[Comments],[IsActive])
       VALUES
-        (@SpendRequestId,@ActionById,@OldStatus,@NewStatus,@Comments);
+        (@SpendRequestId,@ActionById,@OldStatus,@NewStatus,@Comments,@IsActive);
       SELECT * FROM [dbo].[SpendRequestHistory] WHERE [Id] = SCOPE_IDENTITY();
     END
   ELSE
     BEGIN
       UPDATE [dbo].[SpendRequestHistory]
-        SET [SpendRequestId]=@SpendRequestId,[ActionById]=@ActionById,[OldStatus]=@OldStatus,[NewStatus]=@NewStatus,[Comments]=@Comments,[UpdateDT]=GETDATE()
+        SET [SpendRequestId]=@SpendRequestId,[ActionById]=@ActionById,[OldStatus]=@OldStatus,[NewStatus]=@NewStatus,[Comments]=@Comments,[IsActive]=@IsActive,[UpdateDT]=GETDATE()
         WHERE ([Id] = @Id);
       SELECT * FROM [dbo].[SpendRequestHistory] WHERE [Id] = @Id;
     END

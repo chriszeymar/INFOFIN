@@ -3,32 +3,50 @@
 -- Description    : Insert Update Budget
 -- ===================================================================
 
-CREATE PROCEDURE dbo.zgen_Budget_InsUpd
-  (@DepartmentId INT,@CategoryId INT,@Year INT,@ForecastAmount DECIMAL(18,2),@CurrencyId INT,@Id INT=NULL,@Month INT=NULL,@RetMsg NVARCHAR(MAX) OUTPUT)
+CREATE   PROCEDURE [dbo].[zgen_Budget_InsUpd]
+  (@DepartmentId INT,@CategoryId INT,@Year INT,@ForecastAmount DECIMAL(18, 2),@CurrencyId INT,@Id INT=NULL,@Month INT=NULL,@IsActive BIT=1,@RetMsg NVARCHAR(MAX) OUTPUT)
 AS
 BEGIN
-  SET NOCOUNT ON;
-  DECLARE @ExistingId INT;
-  SELECT @ExistingId = Id FROM dbo.Budget
-  WHERE DepartmentId=@DepartmentId AND CategoryId=@CategoryId AND Year=@Year AND (Month=@Month OR (Month IS NULL AND @Month IS NULL));
+  DECLARE @InitialTransCount INT = @@TRANCOUNT;
+  DECLARE @TranName varchar(32) = OBJECT_NAME(@@PROCID);
 
-  IF @ExistingId IS NOT NULL
-  BEGIN
-    UPDATE dbo.Budget SET ForecastAmount=@ForecastAmount, CurrencyId=@CurrencyId, UpdateDT=GETDATE() WHERE Id=@ExistingId;
-    SELECT * FROM dbo.Budget WHERE Id=@ExistingId;
-    SET @RetMsg='Upserted';
-  END
-  ELSE IF @Id IS NOT NULL AND EXISTS(SELECT 1 FROM dbo.Budget WHERE Id=@Id)
-  BEGIN
-    UPDATE dbo.Budget SET DepartmentId=@DepartmentId,CategoryId=@CategoryId,Year=@Year,Month=@Month,ForecastAmount=@ForecastAmount,CurrencyId=@CurrencyId,UpdateDT=GETDATE() WHERE Id=@Id;
-    SELECT * FROM dbo.Budget WHERE Id=@Id;
-    SET @RetMsg='Updated';
-  END
+  BEGIN TRY
+    IF @InitialTransCount = 0 BEGIN TRANSACTION @TranName
+
+    IF @Id IS NULL
+    BEGIN
+      INSERT INTO [dbo].[Budget]
+        ([DepartmentId],[CategoryId],[Year],[ForecastAmount],[CurrencyId],[Month],[IsActive])
+      VALUES
+        (@DepartmentId,@CategoryId,@Year,@ForecastAmount,@CurrencyId,@Month,@IsActive);
+      SELECT * FROM [dbo].[Budget] WHERE [Id] = SCOPE_IDENTITY();
+    END
   ELSE
-  BEGIN
-    INSERT INTO dbo.Budget (DepartmentId,CategoryId,Year,Month,ForecastAmount,CurrencyId) VALUES (@DepartmentId,@CategoryId,@Year,@Month,@ForecastAmount,@CurrencyId);
-    SELECT * FROM dbo.Budget WHERE Id=SCOPE_IDENTITY();
-    SET @RetMsg='Inserted';
-  END
-  RETURN 0;
+    BEGIN
+      UPDATE [dbo].[Budget]
+        SET [DepartmentId]=@DepartmentId,[CategoryId]=@CategoryId,[Year]=@Year,[ForecastAmount]=@ForecastAmount,[CurrencyId]=@CurrencyId,[Month]=@Month,[IsActive]=@IsActive,[UpdateDT]=GETDATE()
+        WHERE ([Id] = @Id);
+      SELECT * FROM [dbo].[Budget] WHERE [Id] = @Id;
+    END
+
+    IF @@ERROR <> 0 BEGIN GOTO errorMsg_section END
+
+    IF @InitialTransCount = 0 COMMIT TRANSACTION @TranName
+    SET @RetMsg = LTRIM(ISNULL(@RetMsg, '') + 'Successful')
+    RETURN 0
+
+  errorMsg_section:
+    SET @RetMsg = LTRIM(ISNULL(@RetMsg, '') + ' SQLErrMSG: ' + ISNULL(ERROR_MESSAGE(), ''))
+    GOTO error_section
+
+  error_section:
+    SET @RetMsg = ISNULL(@RetMsg, '')
+    IF @InitialTransCount = 0 ROLLBACK TRANSACTION @TranName
+    RETURN 1
+  END TRY
+  BEGIN CATCH
+    IF @InitialTransCount = 0 ROLLBACK TRANSACTION @TranName
+    SET @RetMsg = LTRIM(ISNULL(@RetMsg, '') + ' SQLErrMSG: ' + ISNULL(ERROR_MESSAGE(), ''))
+    RETURN 1
+  END CATCH
 END
