@@ -25,6 +25,8 @@ public class SpendRequestsController : ControllerBase
     private readonly IRoleService _roleService;
     private readonly IDepartmentService _departmentService;
     private readonly ICurrencyService _currencyService;
+    private readonly ICategoryService _categoryService;
+    private readonly IVendorService _vendorService;
 
     public SpendRequestsController(
         ISpendRequestService spendRequestService,
@@ -33,7 +35,9 @@ public class SpendRequestsController : ControllerBase
         IUserService userService,
         IRoleService roleService,
         IDepartmentService departmentService,
-        ICurrencyService currencyService)
+        ICurrencyService currencyService,
+        ICategoryService categoryService,
+        IVendorService vendorService)
     {
         _spendRequestService = spendRequestService;
         _spendRequestHistoryService = spendRequestHistoryService;
@@ -42,6 +46,8 @@ public class SpendRequestsController : ControllerBase
         _roleService = roleService;
         _departmentService = departmentService;
         _currencyService = currencyService;
+        _categoryService = categoryService;
+        _vendorService = vendorService;
     }
 
     [HttpGet]
@@ -64,6 +70,7 @@ public class SpendRequestsController : ControllerBase
                 .ToList();
         }
 
+        await PopulateNavigationAsync(requests);
         return Ok(requests.OrderByDescending(x => x.UpdateDT));
     }
 
@@ -89,6 +96,7 @@ public class SpendRequestsController : ControllerBase
             return Forbid();
         }
 
+        await PopulateNavigationAsync(new List<SpendRequest> { request });
         return Ok(request);
     }
 
@@ -220,6 +228,34 @@ public class SpendRequestsController : ControllerBase
         });
 
         return Ok(updated);
+    }
+
+    private async Task<List<SpendRequest>> PopulateNavigationAsync(List<SpendRequest> requests)
+    {
+        if (requests.Count == 0) return requests;
+
+        var departments = (await _departmentService.GetDepartmentById(null, null))
+            .ToDictionary(d => d.Id!.Value);
+        var categories = (await _categoryService.GetCategoryById(null, null))
+            .ToDictionary(c => c.Id!.Value);
+        var users = (await _userService.GetUserById(null, null))
+            .ToDictionary(u => u.Id!.Value);
+        var currencies = (await _currencyService.GetCurrencyById(null, null))
+            .ToDictionary(c => c.Id!.Value);
+        var vendors = (await _vendorService.GetVendorById(null, null))
+            .ToDictionary(v => v.Id!.Value);
+
+        foreach (var r in requests)
+        {
+            r.Department = departments.GetValueOrDefault(r.DepartmentId);
+            r.Category = categories.GetValueOrDefault(r.CategoryId);
+            r.Encoder = users.GetValueOrDefault(r.EncoderId);
+            r.AssignedToUser = r.AssignedToUserId.HasValue ? users.GetValueOrDefault(r.AssignedToUserId.Value) : null;
+            r.Currency = currencies.GetValueOrDefault(r.CurrencyId);
+            r.Vendor = r.VendorId.HasValue ? vendors.GetValueOrDefault(r.VendorId.Value) : null;
+        }
+
+        return requests;
     }
 
     private async Task<UserContext?> BuildUserContext()
