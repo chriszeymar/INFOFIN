@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Clock, CheckCircle2, XCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,22 +15,29 @@ import {
 } from '@/components/ui/table'
 import { StatusBadge } from '@/components/requests/status-badge'
 import { useSession } from '@/auth/AuthContext'
-import { formatCurrency, type SpendRequestStatus } from '@/types/spend-request'
-
-// Temporary empty state — will be replaced with real API data
-const spendRequests: Array<{
-  id: number; referenceNumber: string; department?: { name?: string };
-  category?: { name?: string }; amount: number; currency?: { code?: string };
-  status: SpendRequestStatus; encoder?: { email?: string }; createDT: string;
-}> = []
+import { getSpendRequests } from '@/api/spendRequestService'
+import {
+  flattenSpendRequest, formatCurrency, formatDate,
+  type SpendRequest, type SpendRequestGridRow,
+} from '@/types/spend-request'
 
 export function BasicDashboard() {
   const { name } = useSession()
-  const fallback = spendRequests.slice(0, 4)
+  const [requests, setRequests] = useState<SpendRequest[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const pending = fallback.filter((r) => r.status === 'Posted' || r.status === 'UnderReview').length
-  const approved = fallback.filter((r) => r.status === 'Approved' || r.status === 'Completed').length
-  const declined = fallback.filter((r) => r.status === 'Declined').length
+  useEffect(() => {
+    getSpendRequests()
+      .then(setRequests)
+      .catch(() => setRequests([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const rows: SpendRequestGridRow[] = requests.slice(0, 4).map(flattenSpendRequest)
+
+  const pending = rows.filter((r) => r.status === 'Posted' || r.status === 'UnderReview').length
+  const approved = rows.filter((r) => r.status === 'Approved' || r.status === 'Completed').length
+  const declined = rows.filter((r) => r.status === 'Declined').length
 
   const stats = [
     { label: 'Pending', value: pending, icon: Clock, tint: 'bg-warning/15 text-warning-foreground' },
@@ -91,7 +99,7 @@ export function BasicDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {fallback.map((r) => (
+              {rows.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="pl-6">
                     <Link to={`/expenses/requests/${r.id}`}
@@ -101,19 +109,26 @@ export function BasicDashboard() {
                     </Link>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {r.category?.name ?? '\u2014'}
+                    {r.categoryName}
                   </TableCell>
                   <TableCell className="text-right font-medium tabular-nums">
-                    {formatCurrency(r.amount, r.currency?.code)}
+                    {formatCurrency(r.amount, r.currencyCode)}
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={r.status} />
                   </TableCell>
                   <TableCell className="pr-6 text-muted-foreground">
-                    {r.createDT ? new Date(r.createDT).toLocaleDateString() : ''}
+                    {formatDate(r.createDT)}
                   </TableCell>
                 </TableRow>
               ))}
+              {!loading && rows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
+                    No requests yet. <Link to="/expenses/requests/new" className="text-primary hover:underline">Create one</Link>
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
