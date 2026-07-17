@@ -14,7 +14,8 @@ import {
   YAxis,
 } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { executionForecast, costBreakdown, formatCurrency } from '@/lib/mock-data'
+import { formatCurrency } from '@/lib/mock-data'
+import type { MonthlyBar, PieSlice } from '@/lib/dashboard-data'
 
 const donutColors = [
   'var(--color-chart-1)',
@@ -22,20 +23,25 @@ const donutColors = [
   'var(--color-chart-4)',
 ]
 
-export function DashboardCharts() {
+interface Props {
+  monthlyBars: MonthlyBar[]
+  costBreakdown: PieSlice[]
+}
+
+export function DashboardCharts({ monthlyBars, costBreakdown }: Props) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
       <Card className="lg:col-span-3">
         <CardHeader>
           <CardTitle>Execution vs Forecast</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Revenue and OPEX by month (in thousands)
+            Revenue and OPEX by month
           </p>
         </CardHeader>
         <CardContent>
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={executionForecast} barGap={6}>
+              <BarChart data={monthlyBars} barGap={6}>
                 <CartesianGrid
                   strokeDasharray="3 3"
                   vertical={false}
@@ -62,6 +68,7 @@ export function DashboardCharts() {
                     background: 'var(--color-card)',
                     fontSize: 12,
                   }}
+                  formatter={(v: unknown) => formatCurrency(Number(v) || 0)}
                 />
                 <Legend
                   iconType="circle"
@@ -107,7 +114,7 @@ export function DashboardCharts() {
                   strokeWidth={2}
                 >
                   {costBreakdown.map((entry, i) => (
-                    <Cell key={entry.name} fill={donutColors[i]} />
+                    <Cell key={entry.name} fill={donutColors[i % donutColors.length]} />
                   ))}
                 </Pie>
                 <Tooltip

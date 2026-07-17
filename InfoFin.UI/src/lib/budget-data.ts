@@ -53,6 +53,53 @@ export type DepartmentGroup = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+/** Convert flat API grid rows to nested Department structure */
+export function flatToDepartments(rows: FlatGridRow[]): Department[] {
+  const fgToSection: Record<string, SectionType> = {
+    'Revenus': 'REVENUES',
+    'COS': 'COS',
+    'Fixed Costs': 'FIXED_COSTS',
+    'Variables Costs': 'VARIABLE_COSTS',
+  }
+
+  const deptMap = new Map<string, Map<string, BudgetLineItem[]>>()
+
+  for (const r of rows) {
+    if (!deptMap.has(r.departmentName)) deptMap.set(r.departmentName, new Map())
+    const secMap = deptMap.get(r.departmentName)!
+    const section = fgToSection[r.financialGroup] ?? 'VARIABLE_COSTS'
+    if (!secMap.has(section)) secMap.set(section, [])
+    secMap.get(section)!.push({
+      id: `${r.departmentName}-${r.accountName}`,
+      label: r.accountName,
+      forecast: r.forecast,
+      execution: r.execution,
+    })
+  }
+
+  return Array.from(deptMap.entries()).map(([name, secMap]) => ({
+    id: String(rows.find(r => r.departmentName === name)?.departmentId ?? name),
+    name,
+    sections: Array.from(secMap.entries()).map(([type, items]): BudgetSection => {
+      if (type === 'FIXED_COSTS' || type === 'VARIABLE_COSTS') {
+        return { type, classifications: [{ type: 'ADMIN_FIN' as ClassificationType, items }] }
+      }
+      return { type, items }
+    }),
+  }))
+}
+
+export interface FlatGridRow {
+  departmentId: number
+  departmentName: string
+  accountName: string
+  financialGroup: string
+  odooAccountType: string | null
+  forecast: number
+  execution: number
+  variance: number
+}
+
 function li(id: string, label: string, forecast: number, execPct?: number): BudgetLineItem {
   const execution = execPct !== undefined ? Math.round(forecast * execPct) : 0
   return { id, label, forecast, execution }
@@ -257,6 +304,121 @@ export const departmentGroups: DepartmentGroup[] = [
 export const BUCKET_GROUPS: Record<BucketType, DepartmentGroup[]> = {
   BU: departmentGroups.filter((g) => g.bucketType === 'BU'),
   SU: departmentGroups.filter((g) => g.bucketType === 'SU'),
+}
+
+// ─── Cross-department helpers ─────────────────────────────────────────────────
+
+/**
+ * Find an item in a department's section by label (account name).
+ * This is used for cross-department lookups where item IDs differ
+ * (IDs are prefixed with deptId: "5-10" vs "7-10" for the same account).
+ */
+export function findItemByLabel(
+  dept: Department,
+  sectionType: SectionType,
+  cls: ClassificationType | null,
+  label: string,
+): BudgetLineItem | undefined {
+  const s = dept.sections.find((x) => x.type === sectionType)
+  if (!s) return undefined
+  const items = cls
+    ? s.classifications?.find((c) => c.type === cls)?.items
+    : s.items
+  return items?.find((i) => i.label === label)
+}
+
+/**
+ * Merge all departments' items for a given section/classification into a
+ * deduplicated list (by label). This ensures every account that exists in
+ * ANY department appears as a row in the aggregated grid.
+ */
+export function mergeAllItems(
+  departments: Department[],
+  sectionType: SectionType,
+  cls: ClassificationType | null,
+): BudgetLineItem[] {
+  const seen = new Set<string>()
+  const merged: BudgetLineItem[] = []
+  for (const dept of departments) {
+    const s = dept.sections.find((x) => x.type === sectionType)
+    if (!s) continue
+    const items = cls
+      ? s.classifications?.find((c) => c.type === cls)?.items ?? []
+      : s.items ?? []
+    for (const item of items) {
+      if (!seen.has(item.label)) {
+        seen.add(item.label)
+        merged.push(item)
+      }
+    }
+  }
+  return merged
+}
+
+// ─── Cross-department totals ─────────────────────────────────────────────────
+
+/** Sum forecast & execution for a specific item across all departments.
+ *  Matches by label first (cross-department), falls back to ID (same department). */
+export function getItemTotal(
+  departments: Department[],
+  sectionType: SectionType,
+  cls: ClassificationType | null,
+  itemId: string,
+  itemLabel?: string,
+): { forecast: number; execution: number } {
+  let forecast = 0
+  let execution = 0
+  const label = itemLabel ?? ''
+  for (const dept of departments) {
+    const s = dept.sections.find((x) => x.type === sectionType)
+    if (!s) continue
+    const items = cls
+      ? s.classifications?.find((c) => c.type === cls)?.items
+      : s.items
+    // Match by label first (cross-department), fall back to ID
+    const item = items?.find((i) => i.label === label) ?? items?.find((i) => i.id === itemId)
+    if (item) {
+      forecast += item.forecast
+      execution += item.execution
+    }
+  }
+  return { forecast, execution }
+}
+
+/** Sum section totals across all departments */
+export function getSectionTotal(
+  departments: Department[],
+  sectionType: SectionType,
+): { forecast: number; execution: number } {
+  let forecast = 0
+  let execution = 0
+  for (const dept of departments) {
+    const s = dept.sections.find((x) => x.type === sectionType)
+    if (s) {
+      const t = getSectionTotals(s)
+      forecast += t.forecast
+      execution += t.execution
+    }
+  }
+  return { forecast, execution }
+}
+
+/** Sum classification totals across all departments */
+export function getClassificationTotal(
+  departments: Department[],
+  sectionType: SectionType,
+  cls: ClassificationType,
+): { forecast: number; execution: number } {
+  let forecast = 0
+  let execution = 0
+  for (const dept of departments) {
+    const s = dept.sections.find((x) => x.type === sectionType)
+    const items = s?.classifications?.find((c) => c.type === cls)?.items ?? []
+    const t = sumItems(items)
+    forecast += t.forecast
+    execution += t.execution
+  }
+  return { forecast, execution }
 }
 
 export const YEARS = [2026, 2025, 2024]

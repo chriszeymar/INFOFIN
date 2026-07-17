@@ -43,8 +43,8 @@ export function RequestSlideover({
               <dd className="font-medium">{request.department?.name ?? `#${request.departmentId}`}</dd>
             </div>
             <div>
-              <dt className="text-xs text-muted-foreground">Category</dt>
-              <dd className="font-medium">{request.category?.name ?? `#${request.categoryId}`}</dd>
+              <dt className="text-xs text-muted-foreground">Account</dt>
+              <dd className="font-medium">{request.Account?.name ?? `#${request.categoryId}`}</dd>
             </div>
             <div>
               <dt className="text-xs text-muted-foreground">Vendor</dt>

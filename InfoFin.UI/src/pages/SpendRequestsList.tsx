@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Search, Eye, Pencil, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
+import { Plus, Search, Eye, Pencil, ChevronLeft, ChevronRight, Loader2, Download, FileSpreadsheet, FileText } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -27,6 +27,14 @@ import {
   type SpendRequestGridRow,
   type SpendRequestStatus,
 } from '@/types/spend-request'
+import { exportSpendRequestsToExcel } from '@/lib/export/spend-requests-export-excel'
+import { exportSpendRequestsToPdf } from '@/lib/export/spend-requests-export-pdf'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 const PAGE_SIZE = 5
 
@@ -37,6 +45,7 @@ export default function RequestsPage() {
   const [status, setStatus] = useState<SpendRequestStatus | 'all'>('all')
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<SpendRequest | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     setLoading(true)
@@ -57,6 +66,23 @@ export default function RequestsPage() {
       )
     })
   }, [allRequests, query])
+
+  const handleExport = async (format: 'xlsx' | 'pdf') => {
+    setExporting(true)
+    try {
+      const exportRows: SpendRequestGridRow[] = filtered.map(flattenSpendRequest)
+      const exportOptions = { status, searchQuery: query }
+      if (format === 'xlsx') {
+        await exportSpendRequestsToExcel(exportRows, exportOptions)
+      } else {
+        await exportSpendRequestsToPdf(exportRows, exportOptions)
+      }
+    } catch (err) {
+      console.error('Export failed:', err)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const current = Math.min(page, totalPages)
@@ -94,12 +120,36 @@ export default function RequestsPage() {
             </option>
           ))}
         </Select>
-        <Link to="/expenses/requests/new"
-          className={buttonVariants({ className: 'ml-auto' })}
-        >
-          <Plus className="size-4" />
-          New Request
-        </Link>
+        <div className="ml-auto flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5" disabled={exporting || filtered.length === 0}>
+                {exporting ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Download className="size-4" />
+                )}
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={() => handleExport('xlsx')} className="gap-2">
+                <FileSpreadsheet className="size-4 text-green-600" />
+                Export to Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport('pdf')} className="gap-2">
+                <FileText className="size-4 text-red-500" />
+                Export to PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Link to="/expenses/requests/new"
+            className={buttonVariants({ className: '' })}
+          >
+            <Plus className="size-4" />
+            New Request
+          </Link>
+        </div>
       </div>
 
       <Card>
@@ -115,7 +165,7 @@ export default function RequestsPage() {
                   <TableHead className="pl-6">Actions</TableHead>
                   <TableHead>Reference</TableHead>
                   <TableHead>Department</TableHead>
-                  <TableHead>Category</TableHead>
+                  <TableHead>Account</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Assigned To</TableHead>

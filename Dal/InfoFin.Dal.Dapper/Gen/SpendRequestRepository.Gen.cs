@@ -64,12 +64,12 @@ namespace InfoFin.Dal.Dapper
             return retSpendRequest;
         }
 
-        public async Task<List<InfoFin.Model.SpendRequest>> GetSpendRequestByIds(int? departmentId, int? categoryId, int? encoderId, int? currencyId, int? assignedToUserId, int? vendorId, bool? isActive, string sortDirection = "ASC")
+        public async Task<List<InfoFin.Model.SpendRequest>> GetSpendRequestByIds(int? departmentId, int? accountId, int? encoderId, int? currencyId, int? assignedToUserId, int? vendorId, bool? isActive, string sortDirection = "ASC")
         {
             List<InfoFin.Model.SpendRequest> retSpendRequest = new List<InfoFin.Model.SpendRequest>();
             DynamicParameters dParams = new DynamicParameters();
             dParams.Add("DepartmentId", departmentId);
-            dParams.Add("CategoryId", categoryId);
+            dParams.Add("AccountId", accountId);
             dParams.Add("EncoderId", encoderId);
             dParams.Add("CurrencyId", currencyId);
             dParams.Add("AssignedToUserId", assignedToUserId);
@@ -84,12 +84,12 @@ namespace InfoFin.Dal.Dapper
             return retSpendRequest;
         }
 
-        public async Task<List<InfoFin.Model.SpendRequest>> GetSpendRequestByIdsPaging(int? departmentId, int? categoryId, int? encoderId, int? currencyId, int? assignedToUserId, int? vendorId, bool? isActive, int? pageNumber, int? pageSize, string sortDirection = "ASC")
+        public async Task<List<InfoFin.Model.SpendRequest>> GetSpendRequestByIdsPaging(int? departmentId, int? accountId, int? encoderId, int? currencyId, int? assignedToUserId, int? vendorId, bool? isActive, int? pageNumber, int? pageSize, string sortDirection = "ASC")
         {
             List<InfoFin.Model.SpendRequest> retSpendRequest = new List<InfoFin.Model.SpendRequest>();
             DynamicParameters dParams = new DynamicParameters();
             dParams.Add("DepartmentId", departmentId);
-            dParams.Add("CategoryId", categoryId);
+            dParams.Add("AccountId", accountId);
             dParams.Add("EncoderId", encoderId);
             dParams.Add("CurrencyId", currencyId);
             dParams.Add("AssignedToUserId", assignedToUserId);
@@ -112,7 +112,7 @@ namespace InfoFin.Dal.Dapper
             DynamicParameters dParams = new DynamicParameters();
             dParams.Add("ReferenceNumber", spendRequest.ReferenceNumber);
             dParams.Add("DepartmentId", spendRequest.DepartmentId);
-            dParams.Add("CategoryId", spendRequest.CategoryId);
+            dParams.Add("AccountId", spendRequest.AccountId);
             dParams.Add("EncoderId", spendRequest.EncoderId);
             dParams.Add("Amount", spendRequest.Amount);
             dParams.Add("CurrencyId", spendRequest.CurrencyId);

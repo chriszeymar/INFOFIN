@@ -153,7 +153,7 @@ export default function RequestDetailPage() {
             <CardHeader><CardTitle>Request Details</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <Detail icon={Building2} label="Department" value={request.department?.name ?? `#${request.departmentId}`} />
-              <Detail icon={Tag} label="Category" value={request.category?.name ?? `#${request.categoryId}`} />
+              <Detail icon={Tag} label="Account" value={request.Account?.name ?? `#${request.categoryId}`} />
               <Detail icon={Store} label="Vendor" value={request.vendor?.name ?? '\u2014'} />
               <Detail icon={CalendarDays} label="Date submitted" value={formatDate(request.createDT)} />
               <Detail icon={UserCircle} label="Created by" value={request.encoder?.email ?? `User #${request.encoderId}`} />

@@ -64,12 +64,12 @@ namespace InfoFin.Dal.Dapper
             return retBudget;
         }
 
-        public async Task<List<InfoFin.Model.Budget>> GetBudgetByIds(int? departmentId, int? categoryId, int? currencyId, bool? isActive, string sortDirection = "ASC")
+        public async Task<List<InfoFin.Model.Budget>> GetBudgetByIds(int? departmentId, int? accountId, int? currencyId, bool? isActive, string sortDirection = "ASC")
         {
             List<InfoFin.Model.Budget> retBudget = new List<InfoFin.Model.Budget>();
             DynamicParameters dParams = new DynamicParameters();
             dParams.Add("DepartmentId", departmentId);
-            dParams.Add("CategoryId", categoryId);
+            dParams.Add("AccountId", accountId);
             dParams.Add("CurrencyId", currencyId);
             dParams.Add("IsActive", isActive);
             dParams.Add("SortDirection", sortDirection);
@@ -81,12 +81,12 @@ namespace InfoFin.Dal.Dapper
             return retBudget;
         }
 
-        public async Task<List<InfoFin.Model.Budget>> GetBudgetByIdsPaging(int? departmentId, int? categoryId, int? currencyId, bool? isActive, int? pageNumber, int? pageSize, string sortDirection = "ASC")
+        public async Task<List<InfoFin.Model.Budget>> GetBudgetByIdsPaging(int? departmentId, int? accountId, int? currencyId, bool? isActive, int? pageNumber, int? pageSize, string sortDirection = "ASC")
         {
             List<InfoFin.Model.Budget> retBudget = new List<InfoFin.Model.Budget>();
             DynamicParameters dParams = new DynamicParameters();
             dParams.Add("DepartmentId", departmentId);
-            dParams.Add("CategoryId", categoryId);
+            dParams.Add("AccountId", accountId);
             dParams.Add("CurrencyId", currencyId);
             dParams.Add("IsActive", isActive);
             dParams.Add("PageNumber", pageNumber);
@@ -105,7 +105,7 @@ namespace InfoFin.Dal.Dapper
             InfoFin.Model.Budget retBudget;
             DynamicParameters dParams = new DynamicParameters();
             dParams.Add("DepartmentId", budget.DepartmentId);
-            dParams.Add("CategoryId", budget.CategoryId);
+            dParams.Add("AccountId", budget.AccountId);
             dParams.Add("Year", budget.Year);
             dParams.Add("ForecastAmount", budget.ForecastAmount);
             dParams.Add("CurrencyId", budget.CurrencyId);

@@ -7,7 +7,7 @@ namespace InfoFin.Model
         public int? Id { get; set; }
         public string? ReferenceNumber { get; set; }
         public int DepartmentId { get; set; }
-        public int CategoryId { get; set; }
+        public int AccountId { get; set; }
         public int EncoderId { get; set; }
         public int? AssignedToUserId { get; set; }
         public decimal Amount { get; set; }
@@ -19,7 +19,7 @@ namespace InfoFin.Model
         public DateTime? CreateDT { get; set; }
         public DateTime? UpdateDT { get; set; }
         public int? TotalRows { get; set; }
-        public Category? Category { get; set; }
+        public Account? Account { get; set; }
         public Currency? Currency { get; set; }
         public Department? Department { get; set; }
         public User? Encoder { get; set; }

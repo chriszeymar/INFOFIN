@@ -27,14 +27,14 @@ namespace InfoFin.Domain
             return await _repo.GetActualsById(id, isActive);
         }
 
-        public async Task<List<InfoFin.Model.Actuals>> GetActualsByIds(int? departmentId, int? categoryId, bool? isActive, string sortDirection = "ASC")
+        public async Task<List<InfoFin.Model.Actuals>> GetActualsByIds(int? departmentId, int? accountId, bool? isActive, string sortDirection = "ASC")
         {
-            return await _repo.GetActualsByIds(departmentId, categoryId, isActive, sortDirection);
+            return await _repo.GetActualsByIds(departmentId, accountId, isActive, sortDirection);
         }
 
-        public async Task<List<InfoFin.Model.Actuals>> GetActualsByIdsPaging(int? departmentId, int? categoryId, bool? isActive, int? pageNumber, int? pageSize, string sortDirection = "ASC")
+        public async Task<List<InfoFin.Model.Actuals>> GetActualsByIdsPaging(int? departmentId, int? accountId, bool? isActive, int? pageNumber, int? pageSize, string sortDirection = "ASC")
         {
-            return await _repo.GetActualsByIdsPaging(departmentId, categoryId, isActive, pageNumber, pageSize, sortDirection);
+            return await _repo.GetActualsByIdsPaging(departmentId, accountId, isActive, pageNumber, pageSize, sortDirection);
         }
 
         public async Task<InfoFin.Model.Actuals> InsUpdActuals(InfoFin.Model.Actuals actuals)

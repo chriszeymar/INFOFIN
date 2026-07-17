@@ -17,82 +17,108 @@ public sealed class OdooAdapter : IOdooAdapter
         _http.Timeout = TimeSpan.FromSeconds(30);
     }
 
+    // ── Health ─────────────────────────────────────────────────────
+
     public async Task<bool> HealthCheckAsync(CancellationToken ct = default)
     {
         try { var uid = await AuthenticateAsync(ct); return uid > 0; }
         catch { return false; }
     }
 
-    public async Task<List<OdooCompany>> FetchCompaniesAsync(CancellationToken ct = default)
+    // ── Budget / Forecast ──────────────────────────────────────────
+
+    public async Task<List<OdooBudgetLine>> FetchBudgetLinesAsync(int? year = null, CancellationToken ct = default)
     {
         var uid = await AuthenticateAsync(ct);
-        var results = await ExecuteKwAsync<JsonElement[]>(uid, "res.company", "search_read",
-            new object[] { Array.Empty<object>() },
-            new Dictionary<string, object> { ["fields"] = new[] { "id", "name", "currency_id" } }, ct);
+        var domain = new List<object>();
+        if (year.HasValue)
+        {
+            domain.Add(new object[] { "date_from", ">=", $"{year}-01-01" });
+            domain.Add(new object[] { "date_from", "<", $"{year + 1}-01-01" });
+        }
 
-        return results.Select(r => new OdooCompany
+        var results = await ExecuteKwAsync<JsonElement[]>(uid,
+            "crossovered.budget.lines", "search_read",
+            new object[] { domain.ToArray() },
+            new Dictionary<string, object>
+            {
+                ["fields"] = new[] { "id", "general_budget_id", "analytic_account_id",
+                                     "date_from", "date_to", "planned_amount", "company_id" }
+            }, ct);
+
+        return results.Select(r => new OdooBudgetLine
         {
             Id = r.GetProperty("id").GetInt32(),
-            Name = SafeString(TryGet(r, "name")),
-            CurrencyId = TryGet(r, "currency_id") is var c && c.ValueKind == JsonValueKind.Object && c.TryGetProperty("id", out var cid) ? cid.GetInt32() : null
-        }).ToList();
-    }
-
-    public async Task<List<ChartAccount>> FetchChartOfAccountsAsync(CancellationToken ct = default)
-    {
-        var uid = await AuthenticateAsync(ct);
-        var fields = new[] { "id", "code", "name", "account_type", "company_id" };
-        var results = await ExecuteKwAsync<JsonElement[]>(uid, "account.account", "search_read",
-            new object[] { Array.Empty<object>() },
-            new Dictionary<string, object> { ["fields"] = fields }, ct);
-
-        return results.Select(r => new ChartAccount
-        {
-            Id = r.GetProperty("id").GetInt32(),
-            Code = SafeString(TryGet(r, "code")),
-            Name = SafeString(TryGet(r, "name")),
-            Type = SafeString(TryGet(r, "account_type")),
+            BudgetPostId = TupleId(TryGet(r, "general_budget_id")),
+            BudgetPostName = TupleName(TryGet(r, "general_budget_id")),
+            AnalyticAccountId = TupleId(TryGet(r, "analytic_account_id")),
+            AnalyticAccountName = TupleName(TryGet(r, "analytic_account_id")),
+            DateFrom = ParseDate(TryGet(r, "date_from")),
+            DateTo = ParseDate(TryGet(r, "date_to")),
+            PlannedAmount = TryGet(r, "planned_amount") is var pa && pa.ValueKind == JsonValueKind.Number
+                ? pa.GetDecimal() : 0,
             CompanyId = TupleId(TryGet(r, "company_id")),
             CompanyName = TupleName(TryGet(r, "company_id"))
         }).ToList();
     }
 
-    public async Task<List<ErpPartner>> FetchPartnersAsync(CancellationToken ct = default)
+    public async Task<List<OdooBudgetPost>> FetchBudgetPostsAsync(List<int> postIds, CancellationToken ct = default)
     {
         var uid = await AuthenticateAsync(ct);
-        var fields = new[] { "name", "email", "phone" };
-        var domain = new object[] { new object[] { "supplier_rank", ">", 0 } };
-        var results = await ExecuteKwAsync<JsonElement[]>(uid, "res.partner", "search_read",
-            new object[] { domain },
-            new Dictionary<string, object> { ["fields"] = fields }, ct);
+        var domain = new object[] { new object[] { "id", "in", postIds.ToArray() } };
 
-        return results.Select(r => new ErpPartner
+        var results = await ExecuteKwAsync<JsonElement[]>(uid,
+            "account.budget.post", "search_read",
+            new object[] { domain },
+            new Dictionary<string, object> { ["fields"] = new[] { "id", "name", "account_ids" } }, ct);
+
+        return results.Select(r => new OdooBudgetPost
         {
-            Name = r.GetProperty("name").GetString() ?? "",
-            Email = r.TryGetProperty("email", out var e) && e.ValueKind == JsonValueKind.String ? e.GetString() : null,
-            Phone = r.TryGetProperty("phone", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null,
+            Id = r.GetProperty("id").GetInt32(),
+            Name = SafeString(TryGet(r, "name")),
+            AccountIds = ParseIntArray(TryGet(r, "account_ids"))
         }).ToList();
     }
 
-    public async Task<List<OdooJournalLine>> FetchJournalLinesAsync(int year, DateTime? since = null, CancellationToken ct = default)
+    // ── Budget Execution ───────────────────────────────────────────
+
+    public async Task<List<OdooAnalyticLine>> FetchAnalyticLinesAsync(int year, CancellationToken ct = default)
     {
         var uid = await AuthenticateAsync(ct);
         var domain = new List<object>
         {
             new object[] { "date", ">=", $"{year}-01-01" },
-            new object[] { "date", "<=", $"{year}-12-31" },
-            new object[] { "parent_state", "=", "posted" }
+            new object[] { "date", "<", $"{year + 1}-01-01" }
         };
-        if (since.HasValue)
-            domain.Add(new object[] { "write_date", ">", since.Value.ToString("yyyy-MM-dd HH:mm:ss") });
 
-        var fields = new[] { "id", "account_id", "company_id", "date", "debit", "credit", "name", "write_date" };
-        var results = await ExecuteKwAsync<JsonElement[]>(uid, "account.move.line", "search_read",
+        var fields = new[] { "id", "account_id", "general_account_id", "amount", "date", "company_id" };
+        var results = await ExecuteKwAsync<JsonElement[]>(uid,
+            "account.analytic.line", "search_read",
             new object[] { domain.ToArray() },
             new Dictionary<string, object> { ["fields"] = fields }, ct);
 
-        return results.Select(MapToJournalLine).ToList();
+        return results.Select(r =>
+        {
+            var analyticAcct = TryGet(r, "account_id");
+            var generalAcct = TryGet(r, "general_account_id");
+            var comp = TryGet(r, "company_id");
+            var dt = TryGet(r, "date");
+            return new OdooAnalyticLine
+            {
+                Id = r.GetProperty("id").GetInt32(),
+                AnalyticAccountId = TupleId(analyticAcct),
+                AnalyticAccountName = TupleName(analyticAcct),
+                GeneralAccountId = TupleId(generalAcct),
+                GeneralAccountName = TupleName(generalAcct),
+                Amount = TryGet(r, "amount") is var amt && amt.ValueKind == JsonValueKind.Number ? amt.GetDecimal() : 0,
+                Date = dt.ValueKind == JsonValueKind.String && DateOnly.TryParse(dt.GetString()?[..10], out var d) ? d : DateOnly.MinValue,
+                CompanyId = TupleId(comp),
+                CompanyName = TupleName(comp)
+            };
+        }).ToList();
     }
+
+    // ── XML-RPC helpers ────────────────────────────────────────────
 
     private async Task<int> AuthenticateAsync(CancellationToken ct)
     {
@@ -132,26 +158,21 @@ public sealed class OdooAdapter : IOdooAdapter
         return doc;
     }
 
-    private static OdooJournalLine MapToJournalLine(JsonElement line)
-    {
-        var acct = TryGet(line, "account_id");
-        var comp = TryGet(line, "company_id");
-        var dt = TryGet(line, "date");
-        return new OdooJournalLine
-        {
-            Id = line.GetProperty("id").GetInt32(),
-            AccountId = TupleId(acct), AccountCode = "", AccountName = TupleName(acct),
-            CompanyId = TupleId(comp), CompanyName = TupleName(comp),
-            Date = dt.ValueKind == JsonValueKind.String && DateOnly.TryParse(dt.GetString()?[..10], out var d) ? d : DateOnly.MinValue,
-            Debit = TryGet(line, "debit") is var deb && deb.ValueKind == JsonValueKind.Number ? deb.GetDecimal() : 0,
-            Credit = TryGet(line, "credit") is var cr && cr.ValueKind == JsonValueKind.Number ? cr.GetDecimal() : 0,
-            Label = SafeString(TryGet(line, "name")),
-            WriteDate = TryGet(line, "write_date") is var wd && wd.ValueKind == JsonValueKind.String && DateTime.TryParse(wd.GetString(), out var wdt) ? wdt : null
-        };
-    }
+    private static int TupleId(JsonElement e) =>
+        e.ValueKind == JsonValueKind.Array && e.GetArrayLength() >= 1 && e[0].ValueKind == JsonValueKind.Number
+            ? e[0].GetInt32() : 0;
 
-    private static int TupleId(JsonElement e) => e.ValueKind == JsonValueKind.Array && e.GetArrayLength() >= 1 && e[0].ValueKind == JsonValueKind.Number ? e[0].GetInt32() : 0;
-    private static string TupleName(JsonElement e) => e.ValueKind == JsonValueKind.Array && e.GetArrayLength() >= 2 ? SafeString(e[1]) : e.ValueKind == JsonValueKind.String ? e.GetString() ?? "" : "";
+    private static string TupleName(JsonElement e) =>
+        e.ValueKind == JsonValueKind.Array && e.GetArrayLength() >= 2 ? SafeString(e[1])
+        : e.ValueKind == JsonValueKind.String ? e.GetString() ?? "" : "";
+
     private static JsonElement TryGet(JsonElement e, string n) => e.TryGetProperty(n, out var v) ? v : default;
     private static string SafeString(JsonElement e) => e.ValueKind == JsonValueKind.String ? e.GetString() ?? "" : "";
+    private static DateOnly ParseDate(JsonElement e) =>
+        e.ValueKind == JsonValueKind.String && DateOnly.TryParse(e.GetString()?[..10], out var d) ? d : DateOnly.MinValue;
+
+    private static List<int> ParseIntArray(JsonElement e) =>
+        e.ValueKind == JsonValueKind.Array
+            ? e.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.Number).Select(x => x.GetInt32()).ToList()
+            : new List<int>();
 }

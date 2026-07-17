@@ -27,14 +27,14 @@ namespace InfoFin.Domain
             return await _repo.GetOdooAccountMappingById(id, isActive);
         }
 
-        public async Task<List<InfoFin.Model.OdooAccountMapping>> GetOdooAccountMappingByIds(int? infoFinCategoryId, bool? isActive, string sortDirection = "ASC")
+        public async Task<List<InfoFin.Model.OdooAccountMapping>> GetOdooAccountMappingByIds(int? infoFinAccountId, bool? isActive, string sortDirection = "ASC")
         {
-            return await _repo.GetOdooAccountMappingByIds(infoFinCategoryId, isActive, sortDirection);
+            return await _repo.GetOdooAccountMappingByIds(infoFinAccountId, isActive, sortDirection);
         }
 
-        public async Task<List<InfoFin.Model.OdooAccountMapping>> GetOdooAccountMappingByIdsPaging(int? infoFinCategoryId, bool? isActive, int? pageNumber, int? pageSize, string sortDirection = "ASC")
+        public async Task<List<InfoFin.Model.OdooAccountMapping>> GetOdooAccountMappingByIdsPaging(int? infoFinAccountId, bool? isActive, int? pageNumber, int? pageSize, string sortDirection = "ASC")
         {
-            return await _repo.GetOdooAccountMappingByIdsPaging(infoFinCategoryId, isActive, pageNumber, pageSize, sortDirection);
+            return await _repo.GetOdooAccountMappingByIdsPaging(infoFinAccountId, isActive, pageNumber, pageSize, sortDirection);
         }
 
         public async Task<InfoFin.Model.OdooAccountMapping> InsUpdOdooAccountMapping(InfoFin.Model.OdooAccountMapping odooAccountMapping)

@@ -14,15 +14,17 @@ import {
   createSpendRequest,
   getSpendRequestById,
   getDepartments,
-  getCategories,
+  getAccounts,
   getCurrencies,
   getVendors,
+  getUsers,
 } from '@/api/spendRequestService'
 import type {
   Department,
-  Category,
+  Account,
   Currency,
   Vendor,
+  User,
 } from '@/types/spend-request'
 
 export function RequestForm() {
@@ -33,13 +35,15 @@ export function RequestForm() {
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [departments, setDepartments] = useState<Department[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
+  const [categories, setCategories] = useState<Account[]>([])
   const [currencies, setCurrencies] = useState<Currency[]>([])
   const [vendors, setVendors] = useState<Vendor[]>([])
+  const [users, setUsers] = useState<User[]>([])
 
   const [departmentId, setDepartmentId] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [vendorId, setVendorId] = useState('')
+  const [assignedToUserId, setAssignedToUserId] = useState('')
   const [currencyId, setCurrencyId] = useState('')
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
@@ -51,20 +55,23 @@ export function RequestForm() {
     setLoading(true)
     Promise.all([
       getDepartments(),
-      getCategories(),
+      getAccounts(),
       getCurrencies(),
       getVendors(),
+      getUsers({ isActive: true }),
       editId ? getSpendRequestById(Number(editId)) : null,
     ])
-      .then(([depts, cats, curs, vends, existing]) => {
+      .then(([depts, cats, curs, vends, usrs, existing]) => {
         setDepartments(depts)
         setCategories(cats)
         setCurrencies(curs)
         setVendors(vends)
+        setUsers(usrs)
         if (existing) {
           setDepartmentId(String(existing.departmentId))
           setCategoryId(String(existing.categoryId))
           setVendorId(existing.vendorId ? String(existing.vendorId) : '')
+          setAssignedToUserId(existing.assignedToUserId ? String(existing.assignedToUserId) : '')
           setCurrencyId(String(existing.currencyId))
           setAmount(String(existing.amount))
           setDescription(existing.description ?? '')
@@ -96,6 +103,7 @@ export function RequestForm() {
         amount: Number(amount),
         currencyId: Number(currencyId),
         vendorId: vendorId ? Number(vendorId) : null,
+        assignedToUserId: assignedToUserId ? Number(assignedToUserId) : null,
         description,
       })
       navigate('/expenses/requests')
@@ -147,9 +155,9 @@ export function RequestForm() {
                 </Select>
               </Field>
 
-              <Field label="Category">
+              <Field label="Account">
                 <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required>
-                  <option value="" disabled>Select category</option>
+                  <option value="" disabled>Select Account</option>
                   {categories.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
@@ -161,6 +169,15 @@ export function RequestForm() {
                   <option value="">None</option>
                   {vendors.map((v) => (
                     <option key={v.id} value={v.id}>{v.name}</option>
+                  ))}
+                </Select>
+              </Field>
+
+              <Field label="Assigned To">
+                <Select value={assignedToUserId} onChange={(e) => setAssignedToUserId(e.target.value)}>
+                  <option value="">None</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>{u.email}</option>
                   ))}
                 </Select>
               </Field>

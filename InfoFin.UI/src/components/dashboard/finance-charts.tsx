@@ -21,14 +21,10 @@ import {
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import {
-  costsAnalysis,
-  costAnalysisByDept,
-  yearlyBudgetPerformance,
-  monthlyBudgetPerformance,
   formatCompact,
   formatCurrency,
-  type BudgetLine,
 } from '@/lib/mock-data'
+import type { BudgetLine as BudgetLineDto, CostGroup, DeptCost } from '@/lib/dashboard-data'
 
 const tooltipStyle = {
   borderRadius: 8,
@@ -39,7 +35,7 @@ const tooltipStyle = {
 
 /* ---------------- Budget performance table ---------------- */
 
-function BudgetTable({ rows }: { rows: BudgetLine[] }) {
+function BudgetTable({ rows, showTodate = true }: { rows: BudgetLineDto[]; showTodate?: boolean }) {
   return (
     <div className="overflow-x-auto">
       <Table>
@@ -47,7 +43,7 @@ function BudgetTable({ rows }: { rows: BudgetLine[] }) {
           <TableRow className="hover:bg-transparent">
             <TableHead>Budget</TableHead>
             <TableHead className="text-right">Forecast</TableHead>
-            <TableHead className="text-right">To Date</TableHead>
+            {showTodate && <TableHead className="text-right">To Date</TableHead>}
             <TableHead className="text-right">Execution</TableHead>
             <TableHead className="text-right">%</TableHead>
           </TableRow>
@@ -62,11 +58,13 @@ function BudgetTable({ rows }: { rows: BudgetLine[] }) {
                 {r.label}
               </TableCell>
               <TableCell className="text-right tabular-nums text-muted-foreground">
-                {formatCompact(r.yForecast)}
+                {formatCompact(r.forecast)}
               </TableCell>
-              <TableCell className="text-right tabular-nums">
-                {formatCompact(r.todate)}
-              </TableCell>
+              {showTodate && (
+                <TableCell className="text-right tabular-nums">
+                  {formatCompact(r.todate)}
+                </TableCell>
+              )}
               <TableCell className="text-right tabular-nums">
                 {formatCompact(r.execution)}
               </TableCell>
@@ -90,33 +88,33 @@ function BudgetTable({ rows }: { rows: BudgetLine[] }) {
   )
 }
 
-export function YearlyBudgetPerformance() {
+export function YearlyBudgetPerformance({ data }: { data: BudgetLineDto[] }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>Yearly Budget Performance</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Forecast vs to-date vs execution for FY 2026
+          Forecast vs to-date vs execution for the fiscal year
         </p>
       </CardHeader>
       <CardContent>
-        <BudgetTable rows={yearlyBudgetPerformance} />
+        <BudgetTable rows={data} />
       </CardContent>
     </Card>
   )
 }
 
-export function MonthlyBudgetPerformance() {
+export function MonthlyBudgetPerformance({ data }: { data: BudgetLineDto[] }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>Monthly Budget Performance</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Forecast vs to-date vs execution for the current month
+          Forecast vs execution for the current month
         </p>
       </CardHeader>
       <CardContent>
-        <BudgetTable rows={monthlyBudgetPerformance} />
+        <BudgetTable rows={data} showTodate={false} />
       </CardContent>
     </Card>
   )
@@ -124,7 +122,7 @@ export function MonthlyBudgetPerformance() {
 
 /* ---------------- Costs Analysis (grouped bars) ---------------- */
 
-export function CostsAnalysis() {
+export function CostsAnalysis({ data }: { data: CostGroup[] }) {
   return (
     <Card>
       <CardHeader>
@@ -136,7 +134,7 @@ export function CostsAnalysis() {
       <CardContent>
         <div className="h-72 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={costsAnalysis} barGap={6}>
+            <BarChart data={data} barGap={6}>
               <CartesianGrid
                 strokeDasharray="3 3"
                 vertical={false}
@@ -176,7 +174,7 @@ export function CostsAnalysis() {
 
 /* ---------------- Cost Analysis by department (table) ---------------- */
 
-export function CostAnalysisByDept() {
+export function CostAnalysisByDept({ data }: { data: DeptCost[] }) {
   return (
     <Card>
       <CardHeader>
@@ -198,11 +196,11 @@ export function CostAnalysisByDept() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {costAnalysisByDept.map((r) => (
+              {data.map((r) => (
                 <TableRow key={r.department} className="hover:bg-muted/40">
                   <TableCell className="font-medium">{r.department}</TableCell>
                   <TableCell className="text-right tabular-nums text-muted-foreground">
-                    {formatCompact(r.yForecast)}
+                    {formatCompact(r.forecast)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatCompact(r.todate)}

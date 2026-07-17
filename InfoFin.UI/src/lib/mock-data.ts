@@ -21,29 +21,31 @@ export const costBreakdown = [
 ]
 
 export const overspentCategories = [
-  { category: 'Events', department: 'Marketing', budget: 220000, spent: 268000 },
-  { category: 'Travel', department: 'Sales', budget: 140000, spent: 161500 },
-  { category: 'Facilities', department: 'Operations', budget: 310000, spent: 332000 },
-  { category: 'Software Licenses', department: 'Engineering', budget: 180000, spent: 192400 },
+  { Account: 'Events', department: 'CIRRUS - DIGITAL', budget: 220000, spent: 268000 },
+  { Account: 'Travel', department: 'INFOSET SARL - MONETIQUE', budget: 140000, spent: 161500 },
+  { Account: 'Facilities', department: 'GENISYS - CLOUD', budget: 310000, spent: 332000 },
+  { Account: 'Software Licenses', department: 'AGMUX', budget: 180000, spent: 192400 },
 ]
 
 export const budgetRows = [
-  { category: 'Advertising', forecast: 480000, actual: 312000 },
-  { category: 'Events', forecast: 220000, actual: 268000 },
-  { category: 'Travel', forecast: 140000, actual: 121000 },
-  { category: 'Software Licenses', forecast: 180000, actual: 192400 },
-  { category: 'Hardware', forecast: 260000, actual: 188000 },
-  { category: 'Facilities', forecast: 310000, actual: 332000 },
-  { category: 'Logistics', forecast: 240000, actual: 176000 },
-  { category: 'Professional Services', forecast: 200000, actual: 154000 },
+  { Account: 'Advertising', forecast: 480000, actual: 312000 },
+  { Account: 'Events', forecast: 220000, actual: 268000 },
+  { Account: 'Travel', forecast: 140000, actual: 121000 },
+  { Account: 'Software Licenses', forecast: 180000, actual: 192400 },
+  { Account: 'Hardware', forecast: 260000, actual: 188000 },
+  { Account: 'Facilities', forecast: 310000, actual: 332000 },
+  { Account: 'Logistics', forecast: 240000, actual: 176000 },
+  { Account: 'Professional Services', forecast: 200000, actual: 154000 },
 ]
 
 export const departments = [
-  'Marketing',
-  'Engineering',
-  'Operations',
-  'Sales',
-  'Finance',
+  'CIRRUS - DIGITAL',
+  'INFOSET SARL - MONETIQUE',
+  'GENISYS - CLOUD',
+  'AGMUX',
+  'DG',
+  'FPA',
+  'ADMIN & ACCOUNTING',
 ]
 
 export const categories = [
@@ -92,28 +94,30 @@ export const categoryTree = [
 ]
 
 export const masterDepartments = [
-  { name: 'Marketing', unit: 'BU', group: 'Commercial' },
-  { name: 'Sales', unit: 'BU', group: 'Commercial' },
-  { name: 'Engineering', unit: 'SU', group: 'Technology' },
-  { name: 'Operations', unit: 'SU', group: 'Supply' },
-  { name: 'Finance', unit: 'SU', group: 'Corporate' },
+  { name: 'CIRRUS - DIGITAL', unit: 'BU', group: 'Banking & Digital' },
+  { name: 'INFOSET SARL - MONETIQUE', unit: 'BU', group: 'Banking & Digital' },
+  { name: 'GENISYS - CLOUD', unit: 'BU', group: 'IT & Cloud' },
+  { name: 'AGMUX', unit: 'BU', group: 'IT & Cloud' },
+  { name: 'DG', unit: 'SU', group: 'DG, Admin & Fin' },
+  { name: 'FPA', unit: 'SU', group: 'DG, Admin & Fin' },
+  { name: 'ADMIN & ACCOUNTING', unit: 'SU', group: 'DG, Admin & Fin' },
 ]
 
 export const masterUsers = [
-  { email: 'dana.whitfield@infoset.com', role: 'Requester', department: 'Marketing', active: true },
-  { email: 'marcus.lee@infoset.com', role: 'Director', department: 'Commercial', active: true },
-  { email: 'liam.chen@infoset.com', role: 'FP&A', department: 'Finance', active: true },
-  { email: 'eleanor.voss@infoset.com', role: 'Managing Director', department: 'Executive', active: true },
-  { email: 'priya.nair@infoset.com', role: 'Requester', department: 'Engineering', active: true },
-  { email: 'tomas.berg@infoset.com', role: 'Requester', department: 'Operations', active: false },
+  { email: 'dana.whitfield@infoset.cd', role: 'Financial Analyst', department: 'CIRRUS - DIGITAL', active: true },
+  { email: 'marcus.lee@infoset.cd', role: 'Director', department: 'INFOSET SARL - MONETIQUE', active: true },
+  { email: 'liam.chen@infoset.cd', role: 'FPA Reviewer', department: 'FPA', active: true },
+  { email: 'eleanor.voss@infoset.cd', role: 'Managing Director', department: 'DG', active: true },
+  { email: 'priya.nair@infoset.cd', role: 'Financial Analyst', department: 'GENISYS - CLOUD', active: true },
+  { email: 'tomas.berg@infoset.cd', role: 'Financial Analyst', department: 'AGMUX', active: false },
 ]
 
 export const masterVendors = [
-  { name: 'Meridian Media', category: 'Advertising', country: 'United States' },
-  { name: 'CloudStack Inc.', category: 'Software Licenses', country: 'United States' },
-  { name: 'Northgate Services', category: 'Facilities', country: 'United Kingdom' },
-  { name: 'Globe Travel Co.', category: 'Travel', country: 'Germany' },
-  { name: 'Summit Events', category: 'Events', country: 'United States' },
+  { name: 'Meridian Media', Account: 'Advertising', country: 'United States' },
+  { name: 'CloudStack Inc.', Account: 'Software Licenses', country: 'United States' },
+  { name: 'Northgate Services', Account: 'Facilities', country: 'United Kingdom' },
+  { name: 'Globe Travel Co.', Account: 'Travel', country: 'Germany' },
+  { name: 'Summit Events', Account: 'Events', country: 'United States' },
 ]
 
 export const currencies = [

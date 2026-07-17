@@ -8,9 +8,16 @@ interface BudgetKPICardsProps {
   groupName: string
   deptCount: number
   year: number
-  bucketType: BucketType
+  month: number | null
+  bucketType: BucketType | 'all'
   departments: Department[]
   editing?: boolean
+}
+
+function periodLabel(month: number | null): string {
+  if (month === null) return 'to date'
+  const names = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  return `Jan–${names[month] ?? month}`
 }
 
 function fmtK(n: number) {
@@ -52,15 +59,18 @@ function Stat({
   )
 }
 
-export function BudgetKPICards({ groupName, deptCount, year, bucketType, departments, editing }: BudgetKPICardsProps) {
+export function BudgetKPICards({ groupName, deptCount, year, month, bucketType, departments, editing }: BudgetKPICardsProps) {
   if (departments.length === 0) return null
 
-  const isBU = bucketType === 'BU'
+  const isBU = bucketType === 'BU' || bucketType === 'all'
+  const period = periodLabel(month)
 
-  // Aggregate across all departments
+  // Aggregate across all departments (use 'BU' for getDeptSummary — same math, 'all' depts may lack rev/cos)
+  const effectiveType: BucketType = bucketType === 'all' ? 'BU' : bucketType
+
   const summary = departments.reduce(
     (acc, d) => {
-      const s = getDeptSummary(d, bucketType)
+      const s = getDeptSummary(d, effectiveType)
       return {
         rev: { f: acc.rev.f + s.rev.forecast, e: acc.rev.e + s.rev.execution },
         gm: { f: acc.gm.f + s.grossMargin.forecast, e: acc.gm.e + s.grossMargin.execution },
@@ -93,8 +103,8 @@ export function BudgetKPICards({ groupName, deptCount, year, bucketType, departm
       <div className="flex items-center divide-x divide-border">
         {isBU && (
           <>
-            <Stat label="Revenue" value={fmtK(summary.rev.f)} sub={`${fmtK(summary.rev.e)} to date`} />
-            <Stat label="Gross Margin" value={fmtK(summary.gm.f)} sub={`${fmtK(summary.gm.e)} to date`} />
+            <Stat label="Revenue" value={fmtK(summary.rev.f)} sub={`${fmtK(summary.rev.e)} ${period}`} />
+            <Stat label="Gross Margin" value={fmtK(summary.gm.f)} sub={`${fmtK(summary.gm.e)} ${period}`} />
           </>
         )}
         <Stat label="Total OPEX" value={fmtK(summary.opex.f)} sub={`${fmtK(summary.opex.e)} spent`} />
@@ -102,7 +112,7 @@ export function BudgetKPICards({ groupName, deptCount, year, bucketType, departm
           <Stat
             label="EBIT"
             value={fmtK(summary.ebit.f)}
-            sub={`${fmtK(summary.ebit.e)} to date`}
+            sub={`${fmtK(summary.ebit.e)} ${period}`}
             accent={summary.ebit.f < 0 ? 'text-destructive' : 'text-success'}
           />
         ) : (

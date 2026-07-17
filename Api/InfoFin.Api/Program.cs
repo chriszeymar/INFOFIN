@@ -25,6 +25,7 @@ builder.Services.AddCors(options =>
 // Odoo ERP integration
 builder.Services.Configure<OdooOptions>(builder.Configuration.GetSection(OdooOptions.SectionName));
 builder.Services.AddHttpClient<IOdooAdapter, OdooAdapter>();
+builder.Services.AddScoped<OdooSyncService>();
 builder.Services.AddHostedService<OdooBackgroundService>();
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));

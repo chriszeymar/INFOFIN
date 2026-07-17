@@ -5,7 +5,6 @@ import { ChevronDown, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   type Department,
-  type BudgetSection,
   type BudgetLineItem,
   type SectionType,
   type ClassificationType,
@@ -14,6 +13,11 @@ import {
   sumItems,
   execPct,
   getDeptSummary,
+  getItemTotal,
+  getSectionTotal,
+  getClassificationTotal,
+  findItemByLabel,
+  mergeAllItems,
 } from '@/lib/budget-data'
 
 // ─── Edit API ─────────────────────────────────────────────────────────────────
@@ -93,54 +97,84 @@ const grandTotalCls =
 const grandTotalLabelCls =
   'border-b border-r border-border px-3 py-2 text-left text-xs font-bold bg-primary/8 text-primary uppercase sticky left-0 z-10'
 
+// Department separator — thicker right border on last column of each dept group
+const deptSep = 'border-r-2 border-r-white'
+const deptSepHeader = 'border-r-2 border-r-white'
+
 // ─── Item lookup by id within a department ──────────────────────────────────────
+// Falls back to label-based matching for cross-department views where IDs differ
+// (IDs are prefixed with deptId: "5-10" vs "7-10" for the same account).
 
 function deptItem(
   dept: Department,
   sectionType: SectionType,
   cls: ClassificationType | null,
   id: string,
+  label?: string,
 ): BudgetLineItem | undefined {
   const s = dept.sections.find((x) => x.type === sectionType)
   if (!s) return undefined
-  if (cls) return s.classifications?.find((c) => c.type === cls)?.items.find((i) => i.id === id)
-  return s.items?.find((i) => i.id === id)
+  const items = cls
+    ? s.classifications?.find((c) => c.type === cls)?.items
+    : s.items
+  // Try exact ID match first, then label-based for cross-department
+  return items?.find((i) => i.id === id) ?? (label ? items?.find((i) => i.label === label) : undefined)
 }
 
 // ─── Table header rows ────────────────────────────────────────────────────────
 
 function DeptColHeaders({ departments }: { departments: Department[] }) {
+  const lastIdx = departments.length - 1
   return (
     <tr className="bg-[#0f3d66]/90">
       <th
         className="sticky left-0 z-20 border-b border-r border-white/10 px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-white/70 bg-[#0f3d66]"
         rowSpan={2}
       >
-        Category
+        Account
       </th>
-      {departments.map((d) => (
+      {departments.map((d, i) => (
         <th
           key={d.id}
-          className="border-b border-r border-white/10 px-3 py-2.5 text-center text-xs font-semibold text-white last:border-r-0"
+          className={cn(
+            'border-b border-r border-white/10 px-3 py-2.5 text-center text-xs font-semibold text-white last:border-r-0',
+            i !== lastIdx && deptSepHeader,
+          )}
           colSpan={3}
         >
           {d.name}
         </th>
       ))}
+      {departments.length > 1 && (
+      <th
+        className="border-b border-r-0 border-white/10 px-3 py-2.5 text-center text-xs font-bold text-white bg-[#0a2f4d]"
+        colSpan={3}
+      >
+        TOTAL
+      </th>
+      )}
     </tr>
   )
 }
 
 function DeptSubHeaders({ departments }: { departments: Department[] }) {
+  const lastIdx = departments.length - 1
   return (
     <tr className="bg-[#125586]/80">
-      {departments.map((d) => (
+      {departments.map((d, i) => (
         <React.Fragment key={d.id}>
           <th key={`${d.id}-f`} className={cn(th, 'text-white/70 border-white/10')}>Forecast</th>
           <th key={`${d.id}-e`} className={cn(th, 'text-white/70 border-white/10')}>Execution</th>
-          <th key={`${d.id}-p`} className={cn(th, 'w-14 text-white/70 border-white/10')}>%</th>
+          <th key={`${d.id}-p`} className={cn(th, 'w-14 text-white/70 border-white/10', i !== lastIdx && deptSepHeader)}>%</th>
         </React.Fragment>
       ))}
+      {departments.length > 1 && (
+      <>
+      <th className={cn(th, 'text-white/80 border-white/10 bg-[#0a2f4d]')}>Forecast</th>
+      <th className={cn(th, 'text-white/80 border-white/10 bg-[#0a2f4d]')}>Execution</th>
+      <th className={cn(th, 'w-14 text-white/80 border-white/10 border-r-0 bg-[#0a2f4d]')}>%</th>
+      </>
+      )}
     </tr>
   )
 }
@@ -149,20 +183,21 @@ function DeptSubHeaders({ departments }: { departments: Department[] }) {
 
 function SectionHeaderRow({
   label,
-  colSpan,
+  departments,
   open,
   onToggle,
 }: {
   label: string
-  colSpan: number
+  departments: Department[]
   open: boolean
   onToggle: () => void
 }) {
+  const lastIdx = departments.length - 1
+
   return (
     <tr>
       <td
-        colSpan={colSpan}
-        className="sticky left-0 z-10 cursor-pointer select-none border-b border-border bg-secondary px-3 py-1.5"
+        className="sticky left-0 z-10 cursor-pointer select-none border-b border-r border-border bg-secondary px-3 py-1.5"
         onClick={onToggle}
       >
         <div className="flex items-center gap-2">
@@ -172,26 +207,43 @@ function SectionHeaderRow({
           <span className="text-xs font-bold uppercase tracking-wide text-secondary-foreground">{label}</span>
         </div>
       </td>
+      {departments.map((dept, i) => (
+        <td
+          key={dept.id}
+          colSpan={3}
+          className={cn(
+            'border-b border-r border-border bg-secondary',
+            i !== lastIdx && deptSep,
+          )}
+          onClick={onToggle}
+        />
+      ))}
+      <td
+        colSpan={3}
+        className="border-b border-r-0 border-border bg-secondary"
+        onClick={onToggle}
+      />
     </tr>
   )
 }
 
 function ClassHeaderRow({
   label,
-  colSpan,
+  departments,
   open,
   onToggle,
 }: {
   label: string
-  colSpan: number
+  departments: Department[]
   open: boolean
   onToggle: () => void
 }) {
+  const lastIdx = departments.length - 1
+
   return (
     <tr>
       <td
-        colSpan={colSpan}
-        className="sticky left-0 z-10 cursor-pointer select-none border-b border-border bg-accent px-3 py-1"
+        className="sticky left-0 z-10 cursor-pointer select-none border-b border-r border-border bg-accent px-3 py-1"
         onClick={onToggle}
       >
         <div className="flex items-center gap-2 pl-3">
@@ -201,6 +253,22 @@ function ClassHeaderRow({
           <span className="text-[11px] font-semibold uppercase tracking-wide text-accent-foreground">{label}</span>
         </div>
       </td>
+      {departments.map((dept, i) => (
+        <td
+          key={dept.id}
+          colSpan={3}
+          className={cn(
+            'border-b border-r border-border bg-accent',
+            i !== lastIdx && deptSep,
+          )}
+          onClick={onToggle}
+        />
+      ))}
+      <td
+        colSpan={3}
+        className="border-b border-r-0 border-border bg-accent"
+        onClick={onToggle}
+      />
     </tr>
   )
 }
@@ -274,10 +342,12 @@ function ValueCells({
   dept,
   item,
   edit,
+  isLastDept,
 }: {
   dept: Department
   item: BudgetLineItem | undefined
   edit?: EditApi
+  isLastDept?: boolean
 }) {
   const f = item?.forecast ?? 0
   const e = item?.execution ?? 0
@@ -288,7 +358,7 @@ function ValueCells({
           <NumInput value={f} onCommit={(n) => edit.onValue(dept.id, item.id, 'forecast', n)} />
         </td>
         <td key={`${dept.id}-e`} className={cn(td, 'text-muted-foreground/60')}>{fmt(e)}</td>
-        <td key={`${dept.id}-p`} className={td}><Pct forecast={f} execution={e} /></td>
+        <td key={`${dept.id}-p`} className={cn(td, !isLastDept && deptSep)}><Pct forecast={f} execution={e} /></td>
       </>
     )
   }
@@ -296,7 +366,25 @@ function ValueCells({
     <>
       <td key={`${dept.id}-f`} className={td}>{fmt(f)}</td>
       <td key={`${dept.id}-e`} className={td}>{fmt(e)}</td>
-      <td key={`${dept.id}-p`} className={td}><Pct forecast={f} execution={e} /></td>
+      <td key={`${dept.id}-p`} className={cn(td, !isLastDept && deptSep)}><Pct forecast={f} execution={e} /></td>
+    </>
+  )
+}
+
+// ─── Total cells (non-editable, sums across all departments) ───────────────────
+
+function TotalCells({
+  forecast,
+  execution,
+}: {
+  forecast: number
+  execution: number
+}) {
+  return (
+    <>
+      <td className={cn(td, 'font-semibold bg-muted/10')}>{fmt(forecast)}</td>
+      <td className={cn(td, 'font-semibold bg-muted/10')}>{fmt(execution)}</td>
+      <td className={cn(td, 'font-semibold bg-muted/10 border-r-0')}><Pct forecast={forecast} execution={execution} /></td>
     </>
   )
 }
@@ -314,20 +402,24 @@ function FlatSection({
   sectionType: 'REVENUES' | 'COS'
   edit?: EditApi
 }) {
-  const [open, setOpen] = useState(false)
-  const colSpan = 1 + departments.length * 3
-  const refItems = departments[0]?.sections.find((s) => s.type === sectionType)?.items ?? []
+  const [open, setOpen] = useState(sectionType === 'REVENUES')
+  const hasTotal = departments.length > 1
+  const colSpan = 1 + departments.length * 3 + (hasTotal ? 3 : 0)
+  // Merge all departments' items so every account appears as a row in aggregated views
+  const refItems = mergeAllItems(departments, sectionType, null)
+  const lastIdx = departments.length - 1
 
   return (
     <>
-      <SectionHeaderRow label={label} colSpan={colSpan} open={open} onToggle={() => setOpen((v) => !v)} />
+      <SectionHeaderRow label={label} departments={departments} open={open} onToggle={() => setOpen((v) => !v)} />
       {open &&
         refItems.map((refItem) => (
-          <tr key={refItem.id} className="hover:bg-muted/30 transition-colors">
+          <tr key={refItem.label} className="hover:bg-muted/30 transition-colors">
             <LabelCell item={refItem} indentClass="pl-6" edit={edit} />
-            {departments.map((dept) => (
-              <ValueCells key={dept.id} dept={dept} item={deptItem(dept, sectionType, null, refItem.id)} edit={edit} />
+            {departments.map((dept, i) => (
+              <ValueCells key={dept.id} dept={dept} item={deptItem(dept, sectionType, null, refItem.id, refItem.label)} edit={edit} isLastDept={i === lastIdx} />
             ))}
+            {hasTotal && <TotalCells {...getItemTotal(departments, sectionType, null, refItem.id, refItem.label)} />}
           </tr>
         ))}
       {open && edit && (
@@ -335,17 +427,18 @@ function FlatSection({
       )}
       <tr className="bg-muted/20">
         <td className={subtotalLabelCls}>Total {label}</td>
-        {departments.map((dept) => {
+        {departments.map((dept, i) => {
           const s = dept.sections.find((x) => x.type === sectionType)
           const tot = s ? sumItems(s.items ?? []) : { forecast: 0, execution: 0 }
           return (
             <React.Fragment key={dept.id}>
               <td key={`${dept.id}-f`} className={subtotalCls}>{fmt(tot.forecast)}</td>
               <td key={`${dept.id}-e`} className={subtotalCls}>{fmt(tot.execution)}</td>
-              <td key={`${dept.id}-p`} className={subtotalCls}><Pct forecast={tot.forecast} execution={tot.execution} /></td>
+              <td key={`${dept.id}-p`} className={cn(subtotalCls, i !== lastIdx && deptSep)}><Pct forecast={tot.forecast} execution={tot.execution} /></td>
             </React.Fragment>
           )
         })}
+        {hasTotal && <TotalCells {...getSectionTotal(departments, sectionType)} />}
       </tr>
     </>
   )
@@ -371,70 +464,75 @@ function ClassifiedSection({
     MKT_SALES: false,
   })
 
-  const colSpan = 1 + departments.length * 3
+  const hasTotal = departments.length > 1
+  const colSpan = 1 + departments.length * 3 + (hasTotal ? 3 : 0)
   const getSection = (dept: Department) => dept.sections.find((s) => s.type === sectionType)
   const classifications: ClassificationType[] = ['ADMIN_FIN', 'TECH_OPS', 'MKT_SALES']
+  const lastIdx = departments.length - 1
 
   return (
     <>
-      <SectionHeaderRow label={label} colSpan={colSpan} open={sectionOpen} onToggle={() => setSectionOpen((v) => !v)} />
+      <SectionHeaderRow label={label} departments={departments} open={sectionOpen} onToggle={() => setSectionOpen((v) => !v)} />
       {sectionOpen &&
         classifications.map((cls) => {
-          const refItems =
-            getSection(departments[0])?.classifications?.find((c) => c.type === cls)?.items ?? []
+          // Merge all departments' items for this classification so every
+          // account appears in aggregated views
+          const refItems = mergeAllItems(departments, sectionType, cls)
           const isClsOpen = classOpen[cls]
 
           return (
-            <>
+            <React.Fragment key={cls}>
               <ClassHeaderRow
-                key={`hdr-${cls}`}
                 label={CLASSIFICATION_LABELS[cls]}
-                colSpan={colSpan}
+                departments={departments}
                 open={isClsOpen}
                 onToggle={() => setClassOpen((p) => ({ ...p, [cls]: !p[cls] }))}
               />
               {isClsOpen &&
                 refItems.map((refItem) => (
-                  <tr key={refItem.id} className="hover:bg-muted/30 transition-colors">
+                  <tr key={refItem.label} className="hover:bg-muted/30 transition-colors">
                     <LabelCell item={refItem} indentClass="pl-8" edit={edit} />
-                    {departments.map((dept) => (
-                      <ValueCells key={dept.id} dept={dept} item={deptItem(dept, sectionType, cls, refItem.id)} edit={edit} />
+                    {departments.map((dept, i) => (
+                      <ValueCells key={dept.id} dept={dept} item={deptItem(dept, sectionType, cls, refItem.id, refItem.label)} edit={edit} isLastDept={i === lastIdx} />
                     ))}
+                    {hasTotal && <TotalCells {...getItemTotal(departments, sectionType, cls, refItem.id, refItem.label)} />}
                   </tr>
                 ))}
               {isClsOpen && edit && (
                 <AddLineRow colSpan={colSpan} indentClass="ml-5" onAdd={() => edit.onAdd(sectionType, cls)} />
               )}
-              <tr key={`tot-${cls}`} className="bg-muted/10">
+              <tr className="bg-muted/10">
                 <td className={cn(subtotalLabelCls, 'pl-6')}>{CLASSIFICATION_LABELS[cls]} Total</td>
-                {departments.map((dept) => {
+                {departments.map((dept, i) => {
                   const items = getSection(dept)?.classifications?.find((c) => c.type === cls)?.items ?? []
                   const tot = sumItems(items)
                   return (
                     <React.Fragment key={dept.id}>
                       <td key={`${dept.id}-f`} className={subtotalCls}>{fmt(tot.forecast)}</td>
                       <td key={`${dept.id}-e`} className={subtotalCls}>{fmt(tot.execution)}</td>
-                      <td key={`${dept.id}-p`} className={subtotalCls}><Pct forecast={tot.forecast} execution={tot.execution} /></td>
+                      <td key={`${dept.id}-p`} className={cn(subtotalCls, i !== lastIdx && deptSep)}><Pct forecast={tot.forecast} execution={tot.execution} /></td>
                     </React.Fragment>
                   )
                 })}
+                {hasTotal && <TotalCells {...getClassificationTotal(departments, sectionType, cls)} />}
               </tr>
-            </>
+            </React.Fragment>
           )
         })}
       <tr>
         <td className={grandTotalLabelCls}>Total {label}</td>
-        {departments.map((dept) => {
+        {departments.map((dept, i) => {
           const s = getSection(dept)
           const tot = s ? getSectionTotals(s) : { forecast: 0, execution: 0 }
           return (
             <React.Fragment key={dept.id}>
               <td key={`${dept.id}-f`} className={grandTotalCls}>{fmt(tot.forecast)}</td>
               <td key={`${dept.id}-e`} className={grandTotalCls}>{fmt(tot.execution)}</td>
-              <td key={`${dept.id}-p`} className={grandTotalCls}><Pct forecast={tot.forecast} execution={tot.execution} /></td>
+              <td key={`${dept.id}-p`} className={cn(grandTotalCls, i !== lastIdx && deptSep)}><Pct forecast={tot.forecast} execution={tot.execution} /></td>
             </React.Fragment>
           )
         })}
+        {hasTotal && <TotalCells {...getSectionTotal(departments, sectionType)} />}
       </tr>
     </>
   )
@@ -453,6 +551,7 @@ function SummaryRow({
   getValue: (dept: Department) => { forecast: number; execution: number }
   highlight?: boolean
 }) {
+  const lastIdx = departments.length - 1
   const rowCls = highlight
     ? 'border-b border-r border-border px-3 py-2 text-right text-xs font-bold tabular-nums bg-primary text-primary-foreground last:border-r-0'
     : grandTotalCls
@@ -460,19 +559,29 @@ function SummaryRow({
     ? 'border-b border-r border-border px-3 py-2 text-left text-xs font-bold uppercase tracking-wide bg-primary text-primary-foreground sticky left-0 z-10'
     : grandTotalLabelCls
 
+  // Compute grand total across all departments
+  const total = departments.reduce(
+    (acc, dept) => {
+      const v = getValue(dept)
+      return { forecast: acc.forecast + v.forecast, execution: acc.execution + v.execution }
+    },
+    { forecast: 0, execution: 0 },
+  )
+
   return (
     <tr>
       <td className={lCls}>{label}</td>
-      {departments.map((dept) => {
+      {departments.map((dept, i) => {
         const { forecast, execution } = getValue(dept)
         return (
           <React.Fragment key={dept.id}>
             <td key={`${dept.id}-f`} className={rowCls}>{fmt(forecast)}</td>
             <td key={`${dept.id}-e`} className={rowCls}>{fmt(execution)}</td>
-            <td key={`${dept.id}-p`} className={rowCls}><Pct forecast={forecast} execution={execution} /></td>
+            <td key={`${dept.id}-p`} className={cn(rowCls, i !== lastIdx && deptSep)}><Pct forecast={forecast} execution={execution} /></td>
           </React.Fragment>
         )
       })}
+      {departments.length > 1 && <TotalCells {...total} />}
     </tr>
   )
 }

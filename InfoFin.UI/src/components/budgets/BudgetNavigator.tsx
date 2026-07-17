@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type Selection = { groupId: string; deptId: string | 'all' }
-type BucketFilter = 'BU' | 'SU'
+type BucketFilter = 'BU' | 'SU' | 'all'
 
 export interface NavDept {
   id: string; name: string; forecast: number; execution: number;
@@ -71,14 +71,16 @@ export function BudgetNavigator({
 }: {
   groups: NavGroup[]
   selection: Selection | null
-  onSelect: (s: Selection) => void
+  onSelect: (s: Selection | null) => void
   onClose: () => void
-  onBucketChange?: (bucket: 'BU' | 'SU') => void
+  onBucketChange?: (bucket: 'BU' | 'SU' | 'all') => void
 }) {
-  const [bucketFilter, setBucketFilter] = useState<BucketFilter>('BU')
+  const [bucketFilter, setBucketFilter] = useState<BucketFilter>('all')
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
-  const visibleGroups = groups.filter((g) => g.bucketType === bucketFilter)
+  const visibleGroups = bucketFilter === 'all'
+    ? groups
+    : groups.filter((g) => g.bucketType === bucketFilter)
 
   // Portfolio burn for current bucket filter
   const portfolio = visibleGroups.reduce(
@@ -88,6 +90,7 @@ export function BudgetNavigator({
   const portfolioPct = execPct(portfolio.forecast, portfolio.execution)
 
   const TABS: { key: BucketFilter; label: string }[] = [
+    { key: 'all', label: 'All' },
     { key: 'BU', label: 'BU' },
     { key: 'SU', label: 'SU' },
   ]
@@ -141,10 +144,16 @@ export function BudgetNavigator({
 
       {/* Tree */}
       <div className="flex-1 overflow-y-auto p-2">
-        <div className="flex items-center gap-1.5 px-2 py-1.5">
+        <button
+          onClick={() => onSelect(null)}
+          className={cn(
+            'flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-gray-100',
+            !selection && 'bg-gray-100',
+          )}
+        >
           <BarChart3 className="size-3.5 text-gray-400" />
-          <span className="text-xs font-semibold text-gray-500">Overview</span>
-        </div>
+          <span className={cn('text-xs font-semibold', !selection ? 'text-gray-900' : 'text-gray-500')}>Overview</span>
+        </button>
 
         {visibleGroups.length === 0 ? (
           <div className="px-2 py-4 text-center text-xs text-gray-400">
@@ -171,7 +180,10 @@ export function BudgetNavigator({
                   >
                     <span className={cn('size-2 shrink-0 rounded-full', dot)} />
                     <button
-                      onClick={() => onSelect({ groupId: group.id, deptId: 'all' })}
+                      onClick={() => {
+                        onSelect({ groupId: group.id, deptId: 'all' })
+                        setExpanded((p) => ({ ...p, [group.id]: !(p[group.id] ?? false) }))
+                      }}
                       className={cn(
                         'flex-1 truncate text-left text-sm font-semibold',
                         groupSelected ? 'text-gray-900' : 'text-gray-700',
@@ -182,17 +194,9 @@ export function BudgetNavigator({
                     <span className={cn('shrink-0 text-xs font-bold tabular-nums', healthColor(gPct))}>
                       {gPct !== null ? `${gPct}%` : '—'}
                     </span>
-                    <button
-                      onClick={() =>
-                        setExpanded((p) => ({ ...p, [group.id]: !(p[group.id] ?? true) }))
-                      }
-                      className="text-gray-400 transition-colors hover:text-gray-600"
-                      aria-label={isOpen ? 'Collapse' : 'Expand'}
-                    >
-                      <ChevronDown
-                        className={cn('size-3.5 transition-transform', !isOpen && '-rotate-90')}
-                      />
-                    </button>
+                    <ChevronDown
+                      className={cn('size-3.5 text-gray-400 transition-transform', !isOpen && '-rotate-90')}
+                    />
                   </div>
 
                   {/* Departments */}

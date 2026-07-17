@@ -64,12 +64,12 @@ namespace InfoFin.Dal.Dapper
             return retActuals;
         }
 
-        public async Task<List<InfoFin.Model.Actuals>> GetActualsByIds(int? departmentId, int? categoryId, bool? isActive, string sortDirection = "ASC")
+        public async Task<List<InfoFin.Model.Actuals>> GetActualsByIds(int? departmentId, int? accountId, bool? isActive, string sortDirection = "ASC")
         {
             List<InfoFin.Model.Actuals> retActuals = new List<InfoFin.Model.Actuals>();
             DynamicParameters dParams = new DynamicParameters();
             dParams.Add("DepartmentId", departmentId);
-            dParams.Add("CategoryId", categoryId);
+            dParams.Add("AccountId", accountId);
             dParams.Add("IsActive", isActive);
             dParams.Add("SortDirection", sortDirection);
             using (SqlConnection connection = GetConnection())
@@ -80,12 +80,12 @@ namespace InfoFin.Dal.Dapper
             return retActuals;
         }
 
-        public async Task<List<InfoFin.Model.Actuals>> GetActualsByIdsPaging(int? departmentId, int? categoryId, bool? isActive, int? pageNumber, int? pageSize, string sortDirection = "ASC")
+        public async Task<List<InfoFin.Model.Actuals>> GetActualsByIdsPaging(int? departmentId, int? accountId, bool? isActive, int? pageNumber, int? pageSize, string sortDirection = "ASC")
         {
             List<InfoFin.Model.Actuals> retActuals = new List<InfoFin.Model.Actuals>();
             DynamicParameters dParams = new DynamicParameters();
             dParams.Add("DepartmentId", departmentId);
-            dParams.Add("CategoryId", categoryId);
+            dParams.Add("AccountId", accountId);
             dParams.Add("IsActive", isActive);
             dParams.Add("PageNumber", pageNumber);
             dParams.Add("PageSize", pageSize);
@@ -103,7 +103,7 @@ namespace InfoFin.Dal.Dapper
             InfoFin.Model.Actuals retActuals;
             DynamicParameters dParams = new DynamicParameters();
             dParams.Add("DepartmentId", actuals.DepartmentId);
-            dParams.Add("CategoryId", actuals.CategoryId);
+            dParams.Add("AccountId", actuals.AccountId);
             dParams.Add("Year", actuals.Year);
             dParams.Add("Amount", actuals.Amount);
             if (actuals.Id != null)

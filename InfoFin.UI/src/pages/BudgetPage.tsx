@@ -4,10 +4,19 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { BudgetNavigator, type Selection, type NavGroup } from '@/components/budgets/BudgetNavigator'
 import { BudgetKPICards } from '@/components/budgets/BudgetKPICards'
 import { BUGrid, SUGrid, type EditApi } from '@/components/budgets/BudgetGrid'
-import type { Department, SectionType, ClassificationType } from '@/lib/budget-data'
+import type { Department, SectionType, ClassificationType, FlatGridRow } from '@/lib/budget-data'
+import { flatToDepartments } from '@/lib/budget-data'
 import { httpClient } from '@/api/httpClient'
 import { Button } from '@/components/ui/button'
-import { Loader2, PanelLeftClose, PanelLeftOpen, TrendingUp, Layers, Pencil, Save, X, RefreshCw } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Loader2, PanelLeftClose, PanelLeftOpen, TrendingUp, Layers, Pencil, Save, X, RefreshCw, Download, FileSpreadsheet, FileText } from 'lucide-react'
+import { exportBudgetToExcel } from '@/lib/export/budget-export-excel'
+import { exportBudgetToPdf } from '@/lib/export/budget-export-pdf'
 import { cn } from '@/lib/utils'
 import { Select } from '@/components/ui/select'
 
@@ -24,12 +33,13 @@ function uid(): string {
 
 export default function BudgetPage() {
   const [year, setYear] = useState(2026)
-  const [buSu, setBuSu] = useState<'BU' | 'SU'>('BU')
+  const [buSu, setBuSu] = useState<'BU' | 'SU' | 'all'>('BU')
   const [selection, setSelection] = useState<Selection | null>(null)
   const [showNav, setShowNav] = useState(false)
   const [depts, setDepts] = useState<Department[]>([])
   const [navGroups, setNavGroups] = useState<NavGroup[]>([])
   const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
 
   // Draft editing state
   const [draft, setDraft] = useState<Department[] | null>(null)
@@ -39,8 +49,10 @@ export default function BudgetPage() {
   // Fetch grid data
   useEffect(() => {
     setLoading(true)
-    httpClient.get(`/api/budgets/grid/${year}`, { params: { buSu } })
-      .then(({ data }) => setDepts(Array.isArray(data) ? data : []))
+    const params: Record<string, unknown> = {}
+    if (buSu !== 'all') params.buSu = buSu
+    httpClient.get(`/api/budgets/grid/${year}`, { params })
+      .then(({ data }) => setDepts(flatToDepartments(Array.isArray(data) ? data : [])))
       .catch(() => setDepts([]))
       .finally(() => setLoading(false))
   }, [year, buSu])
@@ -53,9 +65,18 @@ export default function BudgetPage() {
   }, [year])
 
   // Filter departments by selection
-  const filteredDepts = selection?.deptId && selection.deptId !== 'all'
-    ? depts.filter((d) => d.id === selection.deptId)
-    : depts
+  const filteredDepts = useMemo(() => {
+    if (!selection) return depts // Overview — all
+    if (selection.deptId === 'all') {
+      // Group selected — filter to that group's departments only
+      const group = navGroups.find(g => g.id === selection.groupId)
+      if (!group) return depts
+      const deptIds = new Set(group.departments.map(d => d.id))
+      return depts.filter(d => deptIds.has(d.id))
+    }
+    // Specific department
+    return depts.filter(d => d.id === selection.deptId)
+  }, [depts, selection, navGroups])
 
   // KPI context: group name from navigator selection
   const kpiGroupName = useMemo(() => {
@@ -64,7 +85,22 @@ export default function BudgetPage() {
     return g?.name ?? ''
   }, [selection, navGroups])
 
-  // ─── Edit mode actions ─────────────────────────────────────────────
+  // ─── Export ─────────────────────────────────────────────────
+
+  const handleExport = useCallback(async (format: 'xlsx' | 'pdf') => {
+    setExporting(true)
+    try {
+      const opts = { year, month: null as number | null, buSu, groupName: kpiGroupName }
+      if (format === 'xlsx') await exportBudgetToExcel(filteredDepts, opts)
+      else await exportBudgetToPdf(filteredDepts, opts)
+    } catch (err) {
+      console.error('Export failed:', err)
+    } finally {
+      setExporting(false)
+    }
+  }, [filteredDepts, year, buSu, kpiGroupName])
+
+  // ─── Edit mode actions
 
   const startEdit = useCallback(() => {
     setDraft(cloneDepts(filteredDepts))
@@ -89,9 +125,9 @@ export default function BudgetPage() {
       // Re-fetch to get real IDs for new items
       setLoading(true)
       const { data } = await httpClient.get(`/api/budgets/grid/${year}`, { params: { buSu } })
-      setDepts(Array.isArray(data) ? data : [])
+      setDepts(flatToDepartments(Array.isArray(data) ? data : []))
     } catch {
-      // save failed — keep draft
+      // save failed G�� keep draft
     } finally {
       setLoading(false)
     }
@@ -100,7 +136,7 @@ export default function BudgetPage() {
   // Display data: draft while editing, live data otherwise
   const displayDepts = editing ? (draft ?? []) : filteredDepts
 
-  // ─── Edit API handlers ─────────────────────────────────────────────
+  // G��G��G�� Edit API handlers G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��
 
   const editApi: EditApi = useMemo(() => ({
     onValue(deptId, itemId, field, value) {
@@ -180,7 +216,7 @@ export default function BudgetPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* ─── Top Toolbar ─────────────────────────────────────────────── */}
+      {/* G��G��G�� Top Toolbar G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G�� */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-5 py-3">
         <Button
           variant="outline"
@@ -212,14 +248,14 @@ export default function BudgetPage() {
           )}
         >
           {buSu === 'BU' ? <TrendingUp className="size-3" /> : <Layers className="size-3" />}
-          {buSu === 'BU' ? 'Business Unit — Full P&L' : 'Support Unit — OPEX'}
+          {buSu === 'BU' ? 'Business Unit G�� Full P&L' : 'Support Unit G�� OPEX'}
         </span>
 
         <div className="ml-auto flex items-center gap-2">
           {editing ? (
             <>
               <span className="hidden text-xs text-muted-foreground sm:inline">
-                Editing · FY {year}
+                Editing -+ FY {year}
               </span>
               <Button variant="outline" size="sm" onClick={discard} className="gap-1.5">
                 <X className="size-4" />
@@ -232,6 +268,24 @@ export default function BudgetPage() {
             </>
           ) : (
             <>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1.5" disabled={exporting || filteredDepts.length === 0}>
+                    {exporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+                    Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem onClick={() => handleExport('xlsx')} className="gap-2">
+                    <FileSpreadsheet className="size-4 text-green-600" />
+                    Export to Excel
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('pdf')} className="gap-2">
+                    <FileText className="size-4 text-red-500" />
+                    Export to PDF
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button variant="outline" size="sm" className="gap-1.5">
                 <RefreshCw className="size-4" />
                 Odoo Sync
@@ -245,7 +299,7 @@ export default function BudgetPage() {
         </div>
       </div>
 
-      {/* ─── Main Layout ─────────────────────────────────────────────── */}
+      {/* G��G��G�� Main Layout G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G�� */}
       <div className="flex gap-4">
         {showNav && !editing && (
           <div className="shrink-0">
@@ -283,10 +337,10 @@ export default function BudgetPage() {
             <div className="py-16 text-center text-sm text-muted-foreground">
               No actuals data for {year}. Run Odoo Sync from Master Data.
             </div>
-          ) : buSu === 'BU' ? (
-            <BUGrid departments={displayDepts} edit={editing ? editApi : undefined} />
-          ) : (
+          ) : buSu === 'SU' ? (
             <SUGrid departments={displayDepts} edit={editing ? editApi : undefined} />
+          ) : (
+            <BUGrid departments={displayDepts} edit={editing ? editApi : undefined} />
           )}
         </div>
       </div>

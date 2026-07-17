@@ -25,7 +25,7 @@ public class SpendRequestsController : ControllerBase
     private readonly IRoleService _roleService;
     private readonly IDepartmentService _departmentService;
     private readonly ICurrencyService _currencyService;
-    private readonly ICategoryService _categoryService;
+    private readonly IAccountService _accountService;
     private readonly IVendorService _vendorService;
 
     public SpendRequestsController(
@@ -36,7 +36,7 @@ public class SpendRequestsController : ControllerBase
         IRoleService roleService,
         IDepartmentService departmentService,
         ICurrencyService currencyService,
-        ICategoryService categoryService,
+        IAccountService accountService,
         IVendorService vendorService)
     {
         _spendRequestService = spendRequestService;
@@ -46,7 +46,7 @@ public class SpendRequestsController : ControllerBase
         _roleService = roleService;
         _departmentService = departmentService;
         _currencyService = currencyService;
-        _categoryService = categoryService;
+        _accountService = accountService;
         _vendorService = vendorService;
     }
 
@@ -142,7 +142,7 @@ public class SpendRequestsController : ControllerBase
         {
             ReferenceNumber = GenerateReferenceNumber(),
             DepartmentId = request.DepartmentId,
-            CategoryId = request.CategoryId,
+            AccountId = request.AccountId,
             EncoderId = context.UserId,
             AssignedToUserId = request.AssignedToUserId,
             Amount = request.Amount,
@@ -236,7 +236,7 @@ public class SpendRequestsController : ControllerBase
 
         var departments = (await _departmentService.GetDepartmentById(null, null))
             .ToDictionary(d => d.Id!.Value);
-        var categories = (await _categoryService.GetCategoryById(null, null))
+        var categories = (await _accountService.GetAccountById(null, null))
             .ToDictionary(c => c.Id!.Value);
         var users = (await _userService.GetUserById(null, null))
             .ToDictionary(u => u.Id!.Value);
@@ -248,7 +248,7 @@ public class SpendRequestsController : ControllerBase
         foreach (var r in requests)
         {
             r.Department = departments.GetValueOrDefault(r.DepartmentId);
-            r.Category = categories.GetValueOrDefault(r.CategoryId);
+            r.Account = categories.GetValueOrDefault(r.AccountId);
             r.Encoder = users.GetValueOrDefault(r.EncoderId);
             r.AssignedToUser = r.AssignedToUserId.HasValue ? users.GetValueOrDefault(r.AssignedToUserId.Value) : null;
             r.Currency = currencies.GetValueOrDefault(r.CurrencyId);

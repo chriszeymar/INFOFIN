@@ -11,7 +11,6 @@ namespace InfoFin.ServiceCollectionExtension.Gen
             services.AddTransient<IBucketTypeService, BucketTypeService>();
             services.AddTransient<IBudgetService, BudgetService>();
             services.AddTransient<IBudgetAdjustmentService, BudgetAdjustmentService>();
-            services.AddTransient<ICategoryService, CategoryService>();
             services.AddTransient<IClassificationService, ClassificationService>();
             services.AddTransient<ICurrencyService, CurrencyService>();
             services.AddTransient<IDepartmentService, DepartmentService>();
@@ -27,6 +26,7 @@ namespace InfoFin.ServiceCollectionExtension.Gen
             services.AddTransient<IActualsService, ActualsService>();
             services.AddTransient<IOdooAccountMappingService, OdooAccountMappingService>();
             services.AddTransient<IOdooJournalLineService, OdooJournalLineService>();
+            services.AddTransient<IAccountService, AccountService>();
             return services;
         }
     }

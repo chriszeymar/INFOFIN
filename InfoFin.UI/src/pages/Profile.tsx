@@ -21,11 +21,7 @@ export default function ProfilePage() {
 
   return (
     <div className="mx-auto max-w-2xl pb-10">
-      <div className="relative h-40 w-full overflow-hidden rounded-xl sm:h-48">
-        <img src="/profile-banner.png" alt="" className="h-full w-full object-cover" />
-      </div>
-
-      <div className="-mt-14 flex flex-col items-center gap-3">
+      <div className="mt-8 flex flex-col items-center gap-3">
         <div className="flex size-28 items-center justify-center rounded-full border-4 border-background bg-primary text-3xl font-semibold text-primary-foreground shadow-md">
           {initials || 'U'}
         </div>

@@ -64,11 +64,11 @@ namespace InfoFin.Dal.Dapper
             return retOdooAccountMapping;
         }
 
-        public async Task<List<InfoFin.Model.OdooAccountMapping>> GetOdooAccountMappingByIds(int? infoFinCategoryId, bool? isActive, string sortDirection = "ASC")
+        public async Task<List<InfoFin.Model.OdooAccountMapping>> GetOdooAccountMappingByIds(int? infoFinAccountId, bool? isActive, string sortDirection = "ASC")
         {
             List<InfoFin.Model.OdooAccountMapping> retOdooAccountMapping = new List<InfoFin.Model.OdooAccountMapping>();
             DynamicParameters dParams = new DynamicParameters();
-            dParams.Add("InfoFinCategoryId", infoFinCategoryId);
+            dParams.Add("InfoFinAccountId", infoFinAccountId);
             dParams.Add("IsActive", isActive);
             dParams.Add("SortDirection", sortDirection);
             using (SqlConnection connection = GetConnection())
@@ -79,11 +79,11 @@ namespace InfoFin.Dal.Dapper
             return retOdooAccountMapping;
         }
 
-        public async Task<List<InfoFin.Model.OdooAccountMapping>> GetOdooAccountMappingByIdsPaging(int? infoFinCategoryId, bool? isActive, int? pageNumber, int? pageSize, string sortDirection = "ASC")
+        public async Task<List<InfoFin.Model.OdooAccountMapping>> GetOdooAccountMappingByIdsPaging(int? infoFinAccountId, bool? isActive, int? pageNumber, int? pageSize, string sortDirection = "ASC")
         {
             List<InfoFin.Model.OdooAccountMapping> retOdooAccountMapping = new List<InfoFin.Model.OdooAccountMapping>();
             DynamicParameters dParams = new DynamicParameters();
-            dParams.Add("InfoFinCategoryId", infoFinCategoryId);
+            dParams.Add("InfoFinAccountId", infoFinAccountId);
             dParams.Add("IsActive", isActive);
             dParams.Add("PageNumber", pageNumber);
             dParams.Add("PageSize", pageSize);
@@ -102,7 +102,7 @@ namespace InfoFin.Dal.Dapper
             DynamicParameters dParams = new DynamicParameters();
             dParams.Add("OdooAccountCode", odooAccountMapping.OdooAccountCode);
             dParams.Add("OdooAccountName", odooAccountMapping.OdooAccountName);
-            dParams.Add("InfoFinCategoryId", odooAccountMapping.InfoFinCategoryId);
+            dParams.Add("InfoFinAccountId", odooAccountMapping.InfoFinAccountId);
             if (odooAccountMapping.Id != null)
                 dParams.Add("Id", odooAccountMapping.Id);
             if (odooAccountMapping.IsActive != null)

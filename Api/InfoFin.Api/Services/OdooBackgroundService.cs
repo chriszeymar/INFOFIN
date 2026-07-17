@@ -47,28 +47,13 @@ public sealed class OdooBackgroundService : BackgroundService
             using var scope = _scopeFactory.CreateScope();
             var adapter = scope.ServiceProvider.GetRequiredService<IOdooAdapter>();
 
-            _logger.LogInformation("Starting Odoo sync for {Year}/{Month}", now.Year, now.Month);
-
+            _logger.LogInformation("Odoo health check for {Year}/{Month}", now.Year, now.Month);
             var healthy = await adapter.HealthCheckAsync(ct);
-            if (!healthy)
-            {
-                _logger.LogWarning("Odoo health check failed — skipping sync");
-                return;
-            }
-
-            var lines = await adapter.FetchJournalLinesAsync(now.Year, since: null, ct);
-            _logger.LogInformation("Odoo sync complete: {Count} journal lines fetched for {Year}", lines.Count, now.Year);
-
-            // TODO: Upsert actuals into Budget table via Domain services
-            // foreach (var actual in actuals)
-            // {
-            //     var category = await mappingService.Map(actual.AccountCode);
-            //     await budgetService.UpsertActual(category.Id, actual.Balance);
-            // }
+            _logger.LogInformation("Odoo connected: {Healthy}", healthy);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Odoo sync failed");
+            _logger.LogError(ex, "Odoo background sync failed");
         }
     }
 }

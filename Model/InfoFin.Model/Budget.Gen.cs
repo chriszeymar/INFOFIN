@@ -6,7 +6,7 @@ namespace InfoFin.Model
     {
         public int? Id { get; set; }
         public int DepartmentId { get; set; }
-        public int CategoryId { get; set; }
+        public int AccountId { get; set; }
         public int Year { get; set; }
         public int? Month { get; set; }
         public decimal ForecastAmount { get; set; }
@@ -15,7 +15,7 @@ namespace InfoFin.Model
         public DateTime? UpdateDT { get; set; }
         public bool? IsActive { get; set; }
         public int? TotalRows { get; set; }
-        public Category? Category { get; set; }
+        public Account? Account { get; set; }
         public Currency? Currency { get; set; }
         public Department? Department { get; set; }
     }

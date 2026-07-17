@@ -1,41 +1,36 @@
 namespace InfoFin.Integration.Odoo;
 
-public sealed class OdooCompany
+public sealed class OdooBudgetLine
 {
     public int Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public int? CurrencyId { get; set; }
-}
-
-public sealed class ChartAccount
-{
-    public int Id { get; set; }
-    public string Code { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-    public string Type { get; set; } = string.Empty;
+    public int BudgetPostId { get; set; }
+    public string BudgetPostName { get; set; } = string.Empty;
+    public int AnalyticAccountId { get; set; }
+    public string AnalyticAccountName { get; set; } = string.Empty;
+    public DateOnly DateFrom { get; set; }
+    public DateOnly DateTo { get; set; }
+    public decimal PlannedAmount { get; set; }
     public int CompanyId { get; set; }
     public string CompanyName { get; set; } = string.Empty;
 }
 
-public sealed class ErpPartner
-{
-    public string Name { get; set; } = string.Empty;
-    public string? Email { get; set; }
-    public string? Phone { get; set; }
-}
-
-public sealed class OdooJournalLine
+public sealed class OdooBudgetPost
 {
     public int Id { get; set; }
-    public int AccountId { get; set; }
-    public string AccountCode { get; set; } = string.Empty;
-    public string AccountName { get; set; } = string.Empty;
-    public int CompanyId { get; set; }
-    public string CompanyName { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public List<int> AccountIds { get; set; } = new();
+}
+
+public sealed class OdooAnalyticLine
+{
+    public int Id { get; set; }
+    public int AnalyticAccountId { get; set; }
+    public string AnalyticAccountName { get; set; } = string.Empty;
+    public int GeneralAccountId { get; set; }
+    public string GeneralAccountCode { get; set; } = string.Empty;
+    public string GeneralAccountName { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
     public DateOnly Date { get; set; }
-    public decimal Debit { get; set; }
-    public decimal Credit { get; set; }
-    public string? Label { get; set; }
-    public string? State { get; set; }
-    public DateTime? WriteDate { get; set; }
+    public int CompanyId { get; set; }
+    public string CompanyName { get; set; } = string.Empty;
 }

@@ -92,7 +92,7 @@ export function BasicDashboard() {
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead className="pl-6">Reference</TableHead>
-                <TableHead>Category</TableHead>
+                <TableHead>Account</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="pr-6">Date</TableHead>

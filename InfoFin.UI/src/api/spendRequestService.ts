@@ -6,9 +6,10 @@ import type {
   CreateSpendRequestPayload,
   TransitionSpendRequestPayload,
   Department,
-  Category,
+  Account,
   Currency,
   Vendor,
+  User,
 } from '@/types/spend-request'
 
 // ── Spend Requests ──────────────────────────────────────
@@ -72,8 +73,8 @@ export async function getDepartments(): Promise<Department[]> {
   return data
 }
 
-export async function getCategories(): Promise<Category[]> {
-  const { data } = await httpClient.get<Category[]>('/api/categories', {
+export async function getAccounts(): Promise<Category[]> {
+  const { data } = await httpClient.get<Category[]>('/api/accounts', {
     params: { isActive: true },
   })
   return data
@@ -86,5 +87,14 @@ export async function getCurrencies(): Promise<Currency[]> {
 
 export async function getVendors(): Promise<Vendor[]> {
   const { data } = await httpClient.get<Vendor[]>('/api/vendors')
+  return data
+}
+
+export async function getUsers(params?: {
+  roleId?: number
+  departmentId?: number
+  isActive?: boolean
+}): Promise<User[]> {
+  const { data } = await httpClient.get<User[]>('/api/users', { params })
   return data
 }

@@ -11,7 +11,6 @@ namespace InfoFin.ServiceCollectionExtension.Gen
             services.AddTransient<IBucketTypeRepository, BucketTypeRepository>(x => new BucketTypeRepository(connectionString));
             services.AddTransient<IBudgetRepository, BudgetRepository>(x => new BudgetRepository(connectionString));
             services.AddTransient<IBudgetAdjustmentRepository, BudgetAdjustmentRepository>(x => new BudgetAdjustmentRepository(connectionString));
-            services.AddTransient<ICategoryRepository, CategoryRepository>(x => new CategoryRepository(connectionString));
             services.AddTransient<IClassificationRepository, ClassificationRepository>(x => new ClassificationRepository(connectionString));
             services.AddTransient<ICurrencyRepository, CurrencyRepository>(x => new CurrencyRepository(connectionString));
             services.AddTransient<IDepartmentRepository, DepartmentRepository>(x => new DepartmentRepository(connectionString));
@@ -27,6 +26,7 @@ namespace InfoFin.ServiceCollectionExtension.Gen
             services.AddTransient<IActualsRepository, ActualsRepository>(x => new ActualsRepository(connectionString));
             services.AddTransient<IOdooAccountMappingRepository, OdooAccountMappingRepository>(x => new OdooAccountMappingRepository(connectionString));
             services.AddTransient<IOdooJournalLineRepository, OdooJournalLineRepository>(x => new OdooJournalLineRepository(connectionString));
+            services.AddTransient<IAccountRepository, AccountRepository>(x => new AccountRepository(connectionString));
             return services;
         }
     }

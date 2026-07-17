@@ -37,7 +37,7 @@ import OdooSyncWizard from '@/components/master-data/OdooSyncWizard'
 
 type Section =
   | null
-  | 'Categories'
+  | 'Accounts'
   | 'Departments'
   | 'Classifications'
   | 'FinancialGroups'
@@ -46,7 +46,7 @@ type Section =
   | 'OdooSync'
 
 const SINGULAR: Record<NonNullable<Section>, string> = {
-  Categories: 'Category',
+  Accounts: 'Account',
   Departments: 'Department',
   Classifications: 'Classification',
   FinancialGroups: 'Financial Group',
@@ -64,7 +64,7 @@ const CARDS: {
   color: string
   bg: string
 }[] = [
-  { id: 'Categories', label: 'Categories', icon: FolderOpen, description: 'Expense types and cost accounts', count: 0, color: 'bg-blue-600', bg: 'bg-blue-600' },
+  { id: 'Accounts', label: 'Accounts', icon: FolderOpen, description: 'Chart of accounts (P&L)', count: 0, color: 'bg-blue-600', bg: 'bg-blue-600' },
   { id: 'Departments', label: 'Departments', icon: Building2, description: 'Business units and organisational groups', count: 0, color: 'bg-violet-600', bg: 'bg-violet-600' },
   { id: 'Classifications', label: 'Classifications', icon: Tags, description: 'Cost groupings: Admin, Tech, Marketing', count: 0, color: 'bg-emerald-600', bg: 'bg-emerald-600' },
   { id: 'FinancialGroups', label: 'Financial Groups', icon: Layers, description: 'P&L structure: Revenue, COS, OPEX', count: 0, color: 'bg-amber-600', bg: 'bg-amber-600' },
@@ -113,9 +113,6 @@ export default function MasterDataPage() {
                   <span className={cn('flex size-11 items-center justify-center rounded-xl', c.bg)}>
                     <Icon className="size-5 text-white" />
                   </span>
-                  <span className="text-2xl font-bold tabular-nums text-foreground">
-                    {c.count}
-                  </span>
                 </div>
                 <div>
                   <p className="font-semibold text-foreground">{c.label}</p>
@@ -155,7 +152,7 @@ export default function MasterDataPage() {
         )}
       </div>
 
-      {section === 'Categories' && <CategoriesGrid addTrigger={addTrigger} />}
+      {section === 'Accounts' && <AccountsGrid addTrigger={addTrigger} />}
       {section === 'Departments' && <DepartmentsGrid addTrigger={addTrigger} />}
       {section === 'Classifications' && <ClassificationsGrid addTrigger={addTrigger} />}
       {section === 'FinancialGroups' && <FinancialGroupsGrid addTrigger={addTrigger} />}
@@ -376,13 +373,13 @@ function DepartmentModal({
   )
 }
 
-// ─── Category CRUD ────────────────────────────────────────────────────────────
+// ─── Account CRUD ────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 10
 
 interface CatRow { id: number; name: string; financialGroup: string; classification: string; financialGroupId: number; classificationId: number | null }
 
-function CategoriesGrid({ addTrigger }: { addTrigger: number }) {
+function AccountsGrid({ addTrigger }: { addTrigger: number }) {
   const [cats, setCats] = useState<CatRow[]>([])
   const [loading, setLoading] = useState(true)
   const [fgList, setFgList] = useState<LookupItem[]>([])
@@ -395,7 +392,7 @@ function CategoriesGrid({ addTrigger }: { addTrigger: number }) {
     setLoading(true)
     try {
       const [cRes, fgRes, clRes] = await Promise.all([
-        httpClient.get('/api/categories', { params: { isActive: true } }),
+        httpClient.get('/api/accounts', { params: { isActive: true } }),
         httpClient.get('/api/financialgroups'),
         httpClient.get('/api/classifications'),
       ])
@@ -419,15 +416,15 @@ function CategoriesGrid({ addTrigger }: { addTrigger: number }) {
 
   const handleDelete = async () => {
     if (!deleteId) return
-    try { await httpClient.delete(`/api/categories/${deleteId}`); setCats((p) => p.filter((c) => c.id !== deleteId)) } catch {}
+    try { await httpClient.delete(`/api/accounts/${deleteId}`); setCats((p) => p.filter((c) => c.id !== deleteId)) } catch {}
     setDeleteId(null)
   }
 
   const handleSave = async (form: { name: string; financialGroupId: number; classificationId: number | null }) => {
     if (editModal && editModal.id > 0) {
-      await httpClient.put(`/api/categories/${editModal.id}`, { id: editModal.id, name: form.name, financialGroupId: form.financialGroupId, classificationId: form.classificationId, isActive: true })
+      await httpClient.put(`/api/accounts/${editModal.id}`, { id: editModal.id, name: form.name, financialGroupId: form.financialGroupId, classificationId: form.classificationId, isActive: true })
     } else {
-      await httpClient.post('/api/categories', { name: form.name, financialGroupId: form.financialGroupId, classificationId: form.classificationId, isActive: true })
+      await httpClient.post('/api/accounts', { name: form.name, financialGroupId: form.financialGroupId, classificationId: form.classificationId, isActive: true })
     }
     setEditModal(null)
     await load()
@@ -446,14 +443,14 @@ function CategoriesGrid({ addTrigger }: { addTrigger: number }) {
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead className="pl-6 w-20">Actions</TableHead>
-              <TableHead>Category</TableHead>
+              <TableHead>Account</TableHead>
               <TableHead>Financial Group</TableHead>
               <TableHead className="pr-6">Classification</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {cats.length === 0 && (
-              <TableRow><TableCell colSpan={4} className="py-8 text-center text-muted-foreground">No categories found. Click "Add Category" to create one.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={4} className="py-8 text-center text-muted-foreground">No accounts found. Click "Add Account" to create one.</TableCell></TableRow>
             )}
             {paginatedCats.map((c) => (
               <TableRow key={c.id}>
@@ -468,7 +465,7 @@ function CategoriesGrid({ addTrigger }: { addTrigger: number }) {
         {cats.length > PAGE_SIZE && (
           <div className="flex items-center justify-between border-t border-border px-6 py-3">
             <p className="text-sm text-muted-foreground">
-              Showing {paginatedCats.length} of {cats.length} categories
+              Showing {paginatedCats.length} of {cats.length} accounts
             </p>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="icon-sm" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} aria-label="Previous page">
@@ -484,13 +481,13 @@ function CategoriesGrid({ addTrigger }: { addTrigger: number }) {
       </Card>
 
       {editModal !== null && (
-        <CategoryModal initial={editModal.id > 0 ? editModal : null} fgList={fgList} clList={clList} onSave={handleSave} onClose={() => setEditModal(null)} />
+        <AccountModal initial={editModal.id > 0 ? editModal : null} fgList={fgList} clList={clList} onSave={handleSave} onClose={() => setEditModal(null)} />
       )}
 
       {deleteId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setDeleteId(null)}>
           <div className="bg-card border rounded-lg shadow-xl p-5 w-80" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-semibold mb-2">Delete Category?</h3>
+            <h3 className="font-semibold mb-2">Delete Account?</h3>
             <p className="text-sm text-muted-foreground mb-4">This action cannot be undone.</p>
             <div className="flex justify-end gap-2">
               <Button variant="outline" size="sm" onClick={() => setDeleteId(null)}>Cancel</Button>
@@ -503,7 +500,7 @@ function CategoriesGrid({ addTrigger }: { addTrigger: number }) {
   )
 }
 
-function CategoryModal({ initial, fgList, clList, onSave, onClose }: {
+function AccountModal({ initial, fgList, clList, onSave, onClose }: {
   initial: CatRow | null; fgList: LookupItem[]; clList: LookupItem[]; onSave: (f: { name: string; financialGroupId: number; classificationId: number | null }) => void; onClose: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? '')
@@ -514,11 +511,11 @@ function CategoryModal({ initial, fgList, clList, onSave, onClose }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
       <div className="bg-card border rounded-lg shadow-xl p-5 w-96" onClick={(e) => e.stopPropagation()}>
-        <h3 className="font-semibold mb-4">{isCreate ? 'Add Category' : 'Edit Category'}</h3>
+        <h3 className="font-semibold mb-4">{isCreate ? 'Add Account' : 'Edit Account'}</h3>
         <div className="flex flex-col gap-3">
           <div>
             <label className="text-xs font-medium">Name</label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Category name" className="mt-1" />
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Account name" className="mt-1" />
           </div>
           <div>
             <label className="text-xs font-medium">Financial Group</label>

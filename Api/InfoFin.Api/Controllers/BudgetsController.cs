@@ -1,7 +1,5 @@
 using System.Data;
 using Dapper;
-using InfoFin.Domain.Interface;
-using InfoFin.Model;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
@@ -13,150 +11,75 @@ namespace InfoFin.Api.Controllers;
 [Route("api/[controller]")]
 public class BudgetsController : ControllerBase
 {
-    private readonly IBudgetService _service;
     private readonly string _connStr;
 
-    public BudgetsController(IBudgetService service, IConfiguration config)
+    public BudgetsController(IConfiguration config)
     {
-        _service = service;
         _connStr = config.GetConnectionString("Default")!;
     }
 
-    [HttpGet]
-    public async Task<IActionResult> Get(
-        [FromQuery] int? departmentId,
-        [FromQuery] int? categoryId,
-        [FromQuery] int? currencyId,
-        [FromQuery] bool? isActive,
-        [FromQuery] string sortDirection = "ASC")
-    {
-        return Ok(await _service.GetBudgetByIds(departmentId, categoryId, currencyId, isActive, sortDirection));
-    }
-
-    [HttpGet("paged")]
-    public async Task<IActionResult> GetPaged(
-        [FromQuery] int? departmentId,
-        [FromQuery] int? categoryId,
-        [FromQuery] int? currencyId,
-        [FromQuery] bool? isActive,
-        [FromQuery] int? pageNumber = 1,
-        [FromQuery] int? pageSize = 50,
-        [FromQuery] string sortDirection = "ASC")
-    {
-        return Ok(await _service.GetBudgetByIdsPaging(departmentId, categoryId, currencyId, isActive, pageNumber, pageSize, sortDirection));
-    }
-
-    [HttpGet("{id:int}")]
-    public async Task<IActionResult> GetById(int id)
-    {
-        var item = (await _service.GetBudgetById(id, true)).FirstOrDefault();
-        return item is null ? NotFound() : Ok(item);
-    }
-
-    [HttpPost]
-    public async Task<IActionResult> Post([FromBody] Budget payload)
-    {
-        payload.Id = null;
-        var created = await _service.InsUpdBudget(payload);
-        return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
-    }
-
-    [HttpPut("{id:int}")]
-    public async Task<IActionResult> Put(int id, [FromBody] Budget payload)
-    {
-        payload.Id = id;
-        var updated = await _service.InsUpdBudget(payload);
-        return Ok(updated);
-    }
-
-    [HttpDelete("{id:int}")]
-    public async Task<IActionResult> Delete(int id, [FromQuery] bool hardDelete = false)
-    {
-        if (hardDelete)
-        {
-            await _service.DelBudgetHrd(id);
-        }
-        else
-        {
-            await _service.DelBudgetSft(id);
-        }
-
-        return NoContent();
-    }
-
-    // ─── Budget Grid (Phase 11 — real data) ──────────────────────────────────
+    // ─── Grid (flat rows: one per account per department) ─────────────
 
     [HttpGet("grid/{year:int}")]
-    public async Task<IActionResult> GetGrid(int year, [FromQuery] string buSu = "BU")
+    [AllowAnonymous]
+    public async Task<IActionResult> GetGrid(int year, [FromQuery] string? buSu = null, [FromQuery] int? month = null)
     {
         await using var conn = new SqlConnection(_connStr);
         await conn.OpenAsync();
 
-        // Get departments that have actuals for this year, filtered by bucket type
-        var depts = (await conn.QueryAsync<DeptDto>(
-            @"SELECT DISTINCT d.Id, d.Name FROM Department d 
-              INNER JOIN Actuals a ON a.DepartmentId = d.Id 
-              INNER JOIN DepartmentGroup dg ON dg.Id = d.DepartmentGroupId
-              INNER JOIN BucketType bt ON bt.Id = dg.BucketTypeId
-              WHERE a.Year = @Y AND d.IsActive = 1 AND bt.Name = @B", new { Y = year, B = buSu })).ToList();
+        var bucketFilter = string.IsNullOrEmpty(buSu) ? "" :
+            @"AND EXISTS (SELECT 1 FROM Department d2
+              JOIN DepartmentGroup dg2 ON dg2.Id = d2.DepartmentGroupId
+              JOIN BucketType bt2 ON bt2.Id = dg2.BucketTypeId
+              WHERE d2.Id = b.DepartmentId AND bt2.Name = @B)";
 
-        if (depts.Count == 0)
-            return Ok(Array.Empty<object>());
+        var rows = (await conn.QueryAsync<GridRow>(
+            $@"SELECT d.Id AS DepartmentId, d.Name AS DepartmentName, a.Name AS AccountName,
+                   fg.Name AS FinancialGroup, a.OdooAccountType,
+                   ISNULL(b.ForecastAmount, 0) AS Forecast,
+                   ISNULL(act.Execution, 0) AS Execution,
+                   ISNULL(b.ForecastAmount, 0) - ISNULL(act.Execution, 0) AS Variance
+            FROM (
+                -- All department+account combos that have budget OR actuals
+                SELECT DepartmentId, AccountId FROM Budget WHERE Year = @Y AND IsActive = 1
+                UNION
+                SELECT DepartmentId, AccountId FROM Actuals WHERE Year = @Y AND (@M IS NULL OR Month <= @M)
+            ) combos
+            JOIN Department d ON d.Id = combos.DepartmentId AND d.IsActive = 1
+            JOIN Account a ON a.Id = combos.AccountId AND a.IsActive = 1
+            JOIN FinancialGroup fg ON fg.Id = a.FinancialGroupId
+            LEFT JOIN Budget b ON b.DepartmentId = combos.DepartmentId 
+                AND b.AccountId = combos.AccountId AND b.Year = @Y AND b.IsActive = 1
+            LEFT JOIN (
+                SELECT DepartmentId, AccountId, SUM(Amount) AS Execution
+                FROM Actuals WHERE Year = @Y AND (@M IS NULL OR Month <= @M)
+                GROUP BY DepartmentId, AccountId
+            ) act ON act.DepartmentId = combos.DepartmentId AND act.AccountId = combos.AccountId
+            WHERE (@B IS NULL OR EXISTS (
+                SELECT 1 FROM Department d2
+                JOIN DepartmentGroup dg2 ON dg2.Id = d2.DepartmentGroupId
+                JOIN BucketType bt2 ON bt2.Id = dg2.BucketTypeId
+                WHERE d2.Id = combos.DepartmentId AND bt2.Name = @B))
+            ORDER BY d.Name, fg.Name, a.Name",
+            new { Y = year, B = buSu, M = month })).ToList();
 
-        // Get all actuals aggregated by department + category for this year
-        var rows = (await conn.QueryAsync<CellDto>(
-            @"SELECT a.DepartmentId, a.CategoryId, SUM(a.Amount) AS Execution,
-                   c.Name AS CatName, c.FinancialGroupId, c.ClassificationId, c.OdooAccountType,
-                   fg.Name AS FgName, cl.Name AS ClName
-            FROM Actuals a
-            JOIN Category c ON c.Id = a.CategoryId
-            JOIN FinancialGroup fg ON fg.Id = c.FinancialGroupId
-            LEFT JOIN Classification cl ON cl.Id = c.ClassificationId
-            WHERE a.Year = @Y
-              AND EXISTS (SELECT 1 FROM Department d JOIN DepartmentGroup dg ON dg.Id = d.DepartmentGroupId JOIN BucketType bt ON bt.Id = dg.BucketTypeId WHERE d.Id = a.DepartmentId AND bt.Name = @B)
-            GROUP BY a.DepartmentId, a.CategoryId, c.Name, c.FinancialGroupId, c.ClassificationId, c.OdooAccountType, fg.Name, cl.Name
-            ORDER BY c.FinancialGroupId, cl.Name, c.Name", new { Y = year, B = buSu })).ToList();
-
-        // Get budget targets
-        var targets = (await conn.QueryAsync<TargetDto>(
-            "SELECT DepartmentId, CategoryId, ForecastAmount FROM Budget WHERE Year = @Y",
-            new { Y = year }))
-            .ToDictionary(t => (t.DepartmentId, t.CategoryId), t => t.ForecastAmount);
-
-        // Determine section type from Odoo type + FinancialGroup name (not ID)
-        string MapSection(string? odooType, string fgName) => odooType switch
-        {
-            "income" or "income_other" => "REVENUES",
-            "expense_direct_cost" => "COS",
-            "expense" when string.Equals(fgName, "Fixed Costs", StringComparison.OrdinalIgnoreCase) => "FIXED_COSTS",
-            "expense" when string.Equals(fgName, "Variables Costs", StringComparison.OrdinalIgnoreCase) => "VARIABLE_COSTS",
-            _ => "VARIABLE_COSTS"
-        };
-
-        // Map classification by ID (not string match)
-        string MapCls(int? clsId) => clsId switch
-        {
-            1 => "ADMIN_FIN",        // Admin & Finances
-            2 => "TECH_OPS",         // Technical & Operations
-            3 => "MKT_SALES",        // Marketing & Sales
-            _ => "ADMIN_FIN"
-        };
-
-        // Build response: Department[] with sections
-        var result = depts.Select(d => new DeptOut
-        {
-            Id = d.Id.ToString(),
-            Name = d.Name,
-            Sections = BuildSections(d.Id, rows, targets, MapSection, MapCls)
-        }).ToList();
-
-        return Ok(result);
+        return Ok(rows);
     }
 
-    // ─── Navigator (Phase 3 — real group/department summaries) ──────────────
+    [HttpGet("grid/{year:int}/months")]
+    public async Task<IActionResult> GetMonths(int year)
+    {
+        await using var conn = new SqlConnection(_connStr);
+        var months = await conn.QueryAsync<int>(
+            "SELECT DISTINCT Month FROM Actuals WHERE Year = @Y ORDER BY Month", new { Y = year });
+        return Ok(months);
+    }
+
+    // ─── Navigator (group → department summary) ──────────────────────
 
     [HttpGet("navigator/{year:int}")]
-    public async Task<IActionResult> GetNavigator(int year, [FromQuery] string? buSu = null)
+    [AllowAnonymous]
+    public async Task<IActionResult> GetNavigator(int year, [FromQuery] string? buSu = null, [FromQuery] int? month = null)
     {
         await using var conn = new SqlConnection(_connStr);
         await conn.OpenAsync();
@@ -164,229 +87,59 @@ public class BudgetsController : ControllerBase
         var rows = (await conn.QueryAsync<NavRow>(
             @"SELECT dg.Id AS GroupId, dg.Name AS GroupName, bt.Name AS BucketType,
                    d.Id AS DeptId, d.Name AS DeptName,
-                   ISNULL(SUM(b.ForecastAmount), 0) AS Forecast,
-                   ISNULL(SUM(a.Amount), 0) AS Execution
+                   ISNULL(bf.Forecast, 0) AS Forecast,
+                   ISNULL(ae.Execution, 0) AS Execution
             FROM DepartmentGroup dg
             JOIN BucketType bt ON bt.Id = dg.BucketTypeId
             JOIN Department d ON d.DepartmentGroupId = dg.Id AND d.IsActive = 1
-            LEFT JOIN Budget b ON b.DepartmentId = d.Id AND b.Year = @Y
-            LEFT JOIN Actuals a ON a.DepartmentId = d.Id AND a.Year = @Y
+            LEFT JOIN (
+                SELECT DepartmentId, SUM(ForecastAmount) AS Forecast
+                FROM Budget WHERE Year = @Y AND IsActive = 1
+                GROUP BY DepartmentId
+            ) bf ON bf.DepartmentId = d.Id
+            LEFT JOIN (
+                SELECT DepartmentId, SUM(Amount) AS Execution
+                FROM Actuals WHERE Year = @Y AND (@M IS NULL OR Month <= @M)
+                GROUP BY DepartmentId
+            ) ae ON ae.DepartmentId = d.Id
             WHERE (@B IS NULL OR bt.Name = @B)
-            GROUP BY dg.Id, dg.Name, bt.Name, d.Id, d.Name
-            ORDER BY dg.Id, d.Id", new { Y = year, B = buSu })).ToList();
+            ORDER BY dg.Id, d.Id",
+            new { Y = year, B = buSu, M = month })).ToList();
 
         var groups = rows.GroupBy(r => new { r.GroupId, r.GroupName, r.BucketType })
-            .Select(g => new NavGroupOut
+            .Select(g => new
             {
-                Id = g.Key.GroupId.ToString(),
-                Name = g.Key.GroupName,
-                BucketType = g.Key.BucketType,
-                Forecast = g.Sum(r => r.Forecast),
-                Execution = g.Sum(r => r.Execution),
-                Departments = g.Select(d => new NavDeptOut
+                id = g.Key.GroupId.ToString(),
+                name = g.Key.GroupName,
+                bucketType = g.Key.BucketType,
+                forecast = g.Sum(r => r.Forecast),
+                execution = g.Sum(r => r.Execution),
+                departments = g.Select(d => new
                 {
-                    Id = d.DeptId.ToString(),
-                    Name = d.DeptName,
-                    Forecast = d.Forecast,
-                    Execution = d.Execution
-                }).ToList()
-            }).ToList();
+                    id = d.DeptId.ToString(),
+                    name = d.DeptName,
+                    forecast = d.Forecast,
+                    execution = d.Execution
+                })
+            });
 
         return Ok(groups);
     }
 
-    // ─── Save Draft (Phase — persist edits) ──────────────────────────
+    // ─── DTOs ────────────────────────────────────────────────────────
 
-    [HttpPut("draft")]
-    public async Task<IActionResult> SaveDraft([FromBody] SaveDraftRequest request)
-    {
-        await using var conn = new SqlConnection(_connStr);
-        await conn.OpenAsync();
-        using var tx = conn.BeginTransaction();
-
-        try
-        {
-            string FgNameForSection(string type) => type switch
-            {
-                "REVENUES" => "Revenus",
-                "COS" => "COS",
-                "FIXED_COSTS" => "Fixed Costs",
-                _ => "Variables Costs"
-            };
-
-            // 1. Handle deletions
-            foreach (var delId in request.DeletedIds ?? new())
-            {
-                if (TryParseDeptCat(delId, out int dId, out int cId))
-                {
-                    await conn.ExecuteAsync(
-                        "UPDATE Budget SET IsActive = 0 WHERE DepartmentId = @D AND CategoryId = @C AND Year = @Y",
-                        new { D = dId, C = cId, Y = request.Year }, tx);
-                }
-            }
-
-            // 2. Upsert items
-            foreach (var dept in request.Departments ?? new())
-            {
-                if (!int.TryParse(dept.Id, out int deptId)) continue;
-                var allItems = FlattenItems(dept.Sections ?? new());
-
-                foreach (var (sectionType, item) in allItems)
-                {
-                    string fgName = FgNameForSection(sectionType);
-                    int catId;
-
-                    if (item.Id.StartsWith("new-"))
-                    {
-                        var fgId = await conn.QuerySingleAsync<int>(
-                            "SELECT Id FROM FinancialGroup WHERE Name = @N", new { N = fgName }, tx);
-                        catId = await conn.QuerySingleAsync<int>(
-                            @"INSERT INTO Category (Name, FinancialGroupId) VALUES (@N, @F); SELECT SCOPE_IDENTITY()",
-                            new { N = item.Label, F = fgId }, tx);
-                    }
-                    else if (!TryParseDeptCat(item.Id, out _, out catId))
-                    {
-                        continue;
-                    }
-
-                    await conn.ExecuteAsync(
-                        "UPDATE Category SET Name = @N WHERE Id = @C",
-                        new { N = item.Label, C = catId }, tx);
-
-                    await conn.ExecuteAsync(
-                        @"MERGE Budget AS t
-                          USING (SELECT @D AS DepartmentId, @C AS CategoryId, @Y AS Year) AS s
-                          ON t.DepartmentId = s.DepartmentId AND t.CategoryId = s.CategoryId AND t.Year = s.Year
-                          WHEN MATCHED THEN UPDATE SET ForecastAmount = @F, IsActive = 1, UpdateDT = GETDATE()
-                          WHEN NOT MATCHED THEN INSERT (DepartmentId, CategoryId, Year, ForecastAmount, CurrencyId, IsActive) VALUES (@D, @C, @Y, @F, 1, 1);",
-                        new { D = deptId, C = catId, Y = request.Year, F = item.Forecast }, tx);
-                }
-            }
-
-            tx.Commit();
-            return Ok(new { success = true });
-        }
-        catch
-        {
-            tx.Rollback();
-            throw;
-        }
-    }
-
-    private static List<(string SectionType, ItemOut Item)> FlattenItems(List<SectionOut> sections)
-    {
-        var result = new List<(string, ItemOut)>();
-        foreach (var sec in sections)
-        {
-            if (sec.Items != null)
-                foreach (var i in sec.Items) result.Add((sec.Type, i));
-            if (sec.Classifications != null)
-                foreach (var cls in sec.Classifications)
-                    foreach (var i in cls.Items) result.Add((sec.Type, i));
-        }
-        return result;
-    }
-
-    private static bool TryParseDeptCat(string id, out int deptId, out int catId)
-    {
-        deptId = catId = 0;
-        var parts = id.Split('-');
-        return parts.Length == 2 && int.TryParse(parts[0], out deptId) && int.TryParse(parts[1], out catId);
-    }
-
-    public sealed class SaveDraftRequest
-    {
-        public int Year { get; set; }
-        public List<DeptOut> Departments { get; set; } = new();
-        public List<string> DeletedIds { get; set; } = new();
-    }
-
-    private static List<SectionOut> BuildSections(int deptId, List<CellDto> rows,
-        Dictionary<(int, int), decimal> targets,
-        Func<string?, string, string> mapSection, Func<int?, string> mapCls)
-    {
-        var deptRows = rows.Where(r => r.DepartmentId == deptId).ToList();
-        var sectionOrder = new[] { "REVENUES", "COS", "FIXED_COSTS", "VARIABLE_COSTS" };
-
-        return sectionOrder.Select(sectionType =>
-        {
-            var secRows = deptRows.Where(r => mapSection(r.OdooAccountType, r.FgName) == sectionType).ToList();
-            if (secRows.Count == 0) return null;
-
-            if (sectionType is "REVENUES" or "COS")
-            {
-                return new SectionOut
-                {
-                    Type = sectionType,
-                    Items = secRows.Select(r => MakeItem(r, deptId, targets)).ToList()
-                };
-            }
-            else
-            {
-                var clsGroups = secRows.GroupBy(r => mapCls(r.ClassificationId)).Select(g => new ClassificationOut
-                {
-                    Type = g.Key,
-                    Items = g.Select(r => MakeItem(r, deptId, targets)).ToList()
-                }).ToList();
-                return new SectionOut { Type = sectionType, Classifications = clsGroups };
-            }
-        }).Where(s => s != null).Cast<SectionOut>().ToList();
-    }
-
-    private static ItemOut MakeItem(CellDto r, int deptId, Dictionary<(int, int), decimal> targets)
-    {
-        targets.TryGetValue((deptId, r.CategoryId), out var forecast);
-        return new ItemOut
-        {
-            Id = $"{deptId}-{r.CategoryId}",
-            Label = r.CatName,
-            Forecast = forecast,
-            Execution = r.Execution
-        };
-    }
-
-    // DTOs
-    private sealed class DeptDto { public int Id { get; set; } public string Name { get; set; } = ""; }
-    private sealed class CellDto
+    public sealed class GridRow
     {
         public int DepartmentId { get; set; }
-        public int CategoryId { get; set; }
-        public decimal Execution { get; set; }
-        public string CatName { get; set; } = "";
-        public int FinancialGroupId { get; set; }
-        public int? ClassificationId { get; set; }
+        public string DepartmentName { get; set; } = "";
+        public string AccountName { get; set; } = "";
+        public string FinancialGroup { get; set; } = "";
         public string? OdooAccountType { get; set; }
-        public string FgName { get; set; } = "";
-        public string? ClName { get; set; }
-    }
-    private sealed class TargetDto { public int DepartmentId { get; set; } public int CategoryId { get; set; } public decimal ForecastAmount { get; set; } }
-
-    public sealed class DeptOut
-    {
-        public string Id { get; set; } = "";
-        public string Name { get; set; } = "";
-        public List<SectionOut> Sections { get; set; } = new();
-    }
-    public sealed class SectionOut
-    {
-        public string Type { get; set; } = "";
-        public List<ItemOut>? Items { get; set; }
-        public List<ClassificationOut>? Classifications { get; set; }
-    }
-    public sealed class ClassificationOut
-    {
-        public string Type { get; set; } = "";
-        public List<ItemOut> Items { get; set; } = new();
-    }
-    public sealed class ItemOut
-    {
-        public string Id { get; set; } = "";
-        public string Label { get; set; } = "";
         public decimal Forecast { get; set; }
         public decimal Execution { get; set; }
+        public decimal Variance { get; set; }
     }
 
-    // Navigator DTOs
     private sealed class NavRow
     {
         public int GroupId { get; set; }
@@ -394,22 +147,6 @@ public class BudgetsController : ControllerBase
         public string BucketType { get; set; } = "";
         public int DeptId { get; set; }
         public string DeptName { get; set; } = "";
-        public decimal Forecast { get; set; }
-        public decimal Execution { get; set; }
-    }
-    public sealed class NavGroupOut
-    {
-        public string Id { get; set; } = "";
-        public string Name { get; set; } = "";
-        public string BucketType { get; set; } = "";
-        public decimal Forecast { get; set; }
-        public decimal Execution { get; set; }
-        public List<NavDeptOut> Departments { get; set; } = new();
-    }
-    public sealed class NavDeptOut
-    {
-        public string Id { get; set; } = "";
-        public string Name { get; set; } = "";
         public decimal Forecast { get; set; }
         public decimal Execution { get; set; }
     }

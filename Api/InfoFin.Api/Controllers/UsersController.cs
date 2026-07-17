@@ -11,10 +11,14 @@ namespace InfoFin.Api.Controllers;
 public class UsersController : ControllerBase
 {
     private readonly IUserService _service;
+    private readonly IDepartmentService _deptService;
+    private readonly IRoleService _roleService;
 
-    public UsersController(IUserService service)
+    public UsersController(IUserService service, IDepartmentService deptService, IRoleService roleService)
     {
         _service = service;
+        _deptService = deptService;
+        _roleService = roleService;
     }
 
     [HttpGet]
@@ -24,7 +28,9 @@ public class UsersController : ControllerBase
         [FromQuery] bool? isActive,
         [FromQuery] string sortDirection = "ASC")
     {
-        return Ok(await _service.GetUserByIds(roleId, departmentId, isActive, sortDirection));
+        var users = await _service.GetUserByIds(roleId, departmentId, isActive, sortDirection);
+        await PopulateNavigationAsync(users);
+        return Ok(users);
     }
 
     [HttpGet("paged")]
@@ -36,14 +42,18 @@ public class UsersController : ControllerBase
         [FromQuery] int? pageSize = 50,
         [FromQuery] string sortDirection = "ASC")
     {
-        return Ok(await _service.GetUserByIdsPaging(roleId, departmentId, isActive, pageNumber, pageSize, sortDirection));
+        var users = await _service.GetUserByIdsPaging(roleId, departmentId, isActive, pageNumber, pageSize, sortDirection);
+        await PopulateNavigationAsync(users);
+        return Ok(users);
     }
 
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id)
     {
         var item = (await _service.GetUserById(id, true)).FirstOrDefault();
-        return item is null ? NotFound() : Ok(item);
+        if (item is null) return NotFound();
+        await PopulateNavigationAsync(new List<User> { item });
+        return Ok(item);
     }
 
     [HttpPost]
@@ -75,5 +85,24 @@ public class UsersController : ControllerBase
         }
 
         return NoContent();
+    }
+
+    // ─── Navigation population ────────────────────────────────────────────
+
+    private async Task PopulateNavigationAsync(List<User> users)
+    {
+        if (users.Count == 0) return;
+
+        var departments = (await _deptService.GetDepartmentById(null, null))
+            .ToDictionary(d => d.Id!.Value);
+        var roles = (await _roleService.GetRoleById(null, null))
+            .ToDictionary(r => r.Id!.Value);
+
+        foreach (var u in users)
+        {
+            if (u.DepartmentId.HasValue)
+                u.Department = departments.GetValueOrDefault(u.DepartmentId.Value);
+            u.Role = roles.GetValueOrDefault(u.RoleId);
+        }
     }
 }
